@@ -19,16 +19,19 @@ const updateSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const task = await prisma.task.findFirst({
-      where: { id: params.id, userId: session.user.id },
+      where: { id, userId: session.user.id },
     });
 
     if (!task) {
@@ -37,69 +40,87 @@ export async function PATCH(
 
     const body = await req.json();
 
-    // Handle completion toggle
     if ('completed' in body) {
       const today = getTodayString();
+
       if (body.completed) {
         await prisma.taskCompletion.upsert({
-          where: { taskId_date: { taskId: params.id, date: today } },
-          create: { userId: session.user.id, taskId: params.id, date: today },
+          where: { taskId_date: { taskId: id, date: today } },
+          create: { userId: session.user.id, taskId: id, date: today },
           update: {},
         });
 
-        // Update streak
         await updateStreak(session.user.id);
       } else {
         await prisma.taskCompletion.deleteMany({
-          where: { taskId: params.id, date: today },
+          where: { taskId: id, date: today },
         });
       }
+
       return NextResponse.json({ success: true });
     }
 
     const data = updateSchema.parse(body);
+
     const updated = await prisma.task.update({
-      where: { id: params.id },
+      where: { id },
       data,
     });
 
     return NextResponse.json({ task: updated });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors[0].message }, { status: 400 });
-    }
     console.error('[TASK_PATCH]', error);
-    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
+
+    return NextResponse.json(
+      { error: 'Failed to update task' },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     const task = await prisma.task.findFirst({
-      where: { id: params.id, userId: session.user.id },
+      where: {
+        id,
+        userId: session.user.id,
+      },
     });
 
     if (!task) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      );
     }
 
     await prisma.task.update({
-      where: { id: params.id },
+      where: { id },
       data: { isActive: false },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[TASK_DELETE]', error);
-    return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 });
+
+    return NextResponse.json(
+      { error: 'Failed to delete task' },
+      { status: 500 }
+    );
   }
 }
 
