@@ -74,32 +74,45 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  req: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
+
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     const task = await prisma.task.findFirst({
-      where: { id: params.id, userId: session.user.id },
+      where: { id, userId: session.user.id },
     });
 
     if (!task) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      );
     }
 
     await prisma.task.update({
-      where: { id: params.id },
+      where: { id },
       data: { isActive: false },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[TASK_DELETE]', error);
-    return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 });
+
+    return NextResponse.json(
+      { error: 'Failed to delete task' },
+      { status: 500 }
+    );
   }
 }
 
