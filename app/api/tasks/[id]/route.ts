@@ -19,8 +19,9 @@ const updateSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params;
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -28,7 +29,7 @@ export async function PATCH(
     }
 
     const task = await prisma.task.findFirst({
-      where: { id: params.id, userId: session.user.id },
+      where: { id, userId: session.user.id },
     });
 
     if (!task) {
@@ -42,8 +43,8 @@ export async function PATCH(
       const today = getTodayString();
       if (body.completed) {
         await prisma.taskCompletion.upsert({
-          where: { taskId_date: { taskId: params.id, date: today } },
-          create: { userId: session.user.id, taskId: params.id, date: today },
+          where: { taskId_date: { taskId: id, date: today } },
+          create: { userId: session.user.id, taskId: id, date: today },
           update: {},
         });
 
@@ -51,7 +52,7 @@ export async function PATCH(
         await updateStreak(session.user.id);
       } else {
         await prisma.taskCompletion.deleteMany({
-          where: { taskId: params.id, date: today },
+          where: { taskId: id, date: today },
         });
       }
       return NextResponse.json({ success: true });
@@ -59,7 +60,7 @@ export async function PATCH(
 
     const data = updateSchema.parse(body);
     const updated = await prisma.task.update({
-      where: { id: params.id },
+      where: { id },
       data,
     });
 
