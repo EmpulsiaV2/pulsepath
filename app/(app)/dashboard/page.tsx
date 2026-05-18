@@ -1,328 +1,370 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
-import { Plus, Zap, Flame, CheckCircle2, Sun, Sunset, Moon } from 'lucide-react';
+import { Plus, Flame, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SwipeableTaskCard } from '@/components/tasks/SwipeableTaskCard';
 import { TaskModal } from '@/components/tasks/TaskModal';
-import { TaskSkeleton } from '@/components/ui/Skeletons';
 import { Confetti } from '@/components/ui/Confetti';
 import type { Task, CreateTaskInput } from '@/types';
-import { cn } from '@/lib/utils';
 
-const SECTION_ICONS = {
-  morning: { icon: Sun, label: '🌅 Morning', color: '#f59e0b' },
-  afternoon: { icon: Sunset, label: '☀️ Afternoon', color: '#f97316' },
-  evening: { icon: Moon, label: '🌙 Evening', color: '#8b5cf6' },
-};
+const SECTIONS = [
+  { key: 'morning',   label: 'Morning',   emoji: '🌅' },
+  { key: 'afternoon', label: 'Afternoon', emoji: '☀️' },
+  { key: 'evening',   label: 'Evening',   emoji: '🌙' },
+] as const;
 
-type TimeOfDay = 'morning' | 'afternoon' | 'evening';
+function TaskSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {[80, 65, 90, 55, 75].map((w, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 12px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+          <div className="skel" style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0 }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="skel" style={{ height: 13, width: `${w}%`, borderRadius: 6 }} />
+            <div className="skel" style={{ height: 10, width: 48, borderRadius: 6 }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editTask, setEditTask] = useState<Task | null>(null);
-  const [defaultSection, setDefaultSection] = useState<TimeOfDay>('morning');
-  const [streak, setStreak] = useState(0);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [hadAllCompleted, setHadAllCompleted] = useState(false);
+  const [tasks, setTasks]           = useState<Task[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [modalOpen, setModalOpen]   = useState(false);
+  const [editTask, setEditTask]     = useState<Task | null>(null);
+  const [defSection, setDefSection] = useState<'morning'|'afternoon'|'evening'>('morning');
+  const [streak, setStreak]         = useState(0);
+  const [confetti, setConfetti]     = useState(false);
+  const prevAllDone                 = useRef(false);
 
-  const loadTasks = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/tasks');
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setTasks(data.tasks);
-    } catch {
-      toast.error('Failed to load tasks');
-    } finally {
-      setIsLoading(false);
-    }
+      const r = await fetch('/api/tasks');
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      setTasks(d.tasks);
+    } catch { toast.error('Failed to load'); }
+    finally { setLoading(false); }
   }, []);
 
   const loadStreak = useCallback(async () => {
     try {
-      const res = await fetch('/api/stats');
-      if (!res.ok) return;
-      const data = await res.json();
-      setStreak(data.streak.current);
+      const r = await fetch('/api/stats');
+      if (!r.ok) return;
+      const d = await r.json();
+      setStreak(d.streak.current);
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => {
-    loadTasks();
-    loadStreak();
-  }, [loadTasks, loadStreak]);
+  useEffect(() => { load(); loadStreak(); }, [load, loadStreak]);
 
-  // Check for all complete
+  // Confetti when all tasks first become done
   useEffect(() => {
-    if (tasks.length === 0) return;
-    const allDone = tasks.every((t) => t.isCompleted);
-    if (allDone && !hadAllCompleted) {
-      setShowConfetti(true);
-      setHadAllCompleted(true);
-      setTimeout(() => setShowConfetti(false), 100);
+    if (!tasks.length) return;
+    const allDone = tasks.every(t => t.isCompleted);
+    if (allDone && !prevAllDone.current) {
+      setConfetti(true);
+      setTimeout(() => setConfetti(false), 100);
     }
-    if (!allDone) setHadAllCompleted(false);
-  }, [tasks, hadAllCompleted]);
+    prevAllDone.current = allDone;
+  }, [tasks]);
 
   const handleComplete = async (id: string, completed: boolean) => {
-    // Optimistic update
-    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, isCompleted: completed } : t));
-
+    setTasks(p => p.map(t => t.id === id ? { ...t, isCompleted: completed } : t));
     try {
-      const res = await fetch(`/api/tasks/${id}`, {
+      await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed }),
       });
-      if (!res.ok) throw new Error();
-      if (completed) toast.success('Task completed! ✓', { icon: '⚡' });
       loadStreak();
-    } catch {
-      // Revert
-      setTasks((prev) => prev.map((t) => t.id === id ? { ...t, isCompleted: !completed } : t));
-      toast.error('Failed to update task');
-    }
+    } catch { load(); }
   };
 
   const handleDelete = async (id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    try {
-      const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      toast.success('Task removed');
-    } catch {
-      loadTasks();
-      toast.error('Failed to delete task');
-    }
+    setTasks(p => p.filter(t => t.id !== id));
+    try { await fetch(`/api/tasks/${id}`, { method: 'DELETE' }); }
+    catch { load(); }
   };
 
   const handleSave = async (data: CreateTaskInput) => {
-    try {
-      const url = editTask ? `/api/tasks/${editTask.id}` : '/api/tasks';
-      const method = editTask ? 'PATCH' : 'POST';
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
-      }
-      toast.success(editTask ? 'Task updated!' : 'Task added!');
-      loadTasks();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save task');
-      throw err;
-    }
+    const url    = editTask ? `/api/tasks/${editTask.id}` : '/api/tasks';
+    const method = editTask ? 'PATCH' : 'POST';
+    const r = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+    toast.success(editTask ? 'Updated' : 'Task added');
+    load();
   };
 
-  const completedCount = tasks.filter((t) => t.isCompleted).length;
-  const totalCount = tasks.length;
-  const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  const done  = tasks.filter(t => t.isCompleted).length;
+  const total = tasks.length;
+  const pct   = total > 0 ? (done / total) * 100 : 0;
+  const allDone = total > 0 && done === total;
 
-  const groupedTasks = {
-    morning: tasks.filter((t) => t.timeOfDay === 'morning'),
-    afternoon: tasks.filter((t) => t.timeOfDay === 'afternoon'),
-    evening: tasks.filter((t) => t.timeOfDay === 'evening'),
+  const grouped = {
+    morning:   tasks.filter(t => t.timeOfDay === 'morning'),
+    afternoon: tasks.filter(t => t.timeOfDay === 'afternoon'),
+    evening:   tasks.filter(t => t.timeOfDay === 'evening'),
   };
 
   const firstName = session?.user?.name?.split(' ')[0] ?? 'there';
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="h-full overflow-y-auto with-bottom-nav">
-      <Confetti trigger={showConfetti} />
+    <div className="page">
+      <Confetti trigger={confetti} />
 
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-[#09090c]/90 backdrop-blur-xl border-b border-white/4 safe-top">
-        <div className="px-4 pt-4 pb-3 max-w-xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
+      <div className="page-header" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+        <div style={{ padding: '16px 20px 14px', maxWidth: 560, margin: '0 auto' }}>
+
+          {/* Top row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
-              <p className="text-xs text-white/35 font-medium">
-                {format(new Date(), 'EEEE, MMMM d')}
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--tx-3)', marginBottom: 3 }}>
+                {format(new Date(), 'EEEE, MMM d')}
               </p>
-              <h1 className="text-lg font-bold leading-tight">
-                {greeting}, {firstName} 👋
+              <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--tx-1)', lineHeight: 1 }}>
+                {greet}, {firstName}
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {streak > 0 && (
-                <div className="flex items-center gap-1.5 bg-orange-500/15 border border-orange-500/20 px-3 py-1.5 rounded-xl">
-                  <Flame className="w-3.5 h-3.5 text-orange-400" />
-                  <span className="text-xs font-bold text-orange-400">{streak}</span>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  background: 'var(--orange-dim)', border: '1px solid rgba(251,146,60,0.2)',
+                  borderRadius: 8, padding: '5px 9px',
+                }}>
+                  <Flame size={13} color="var(--orange)" />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--orange)', fontFamily: 'Geist Mono, monospace' }}>
+                    {streak}
+                  </span>
                 </div>
               )}
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-[0_0_16px_rgba(99,102,241,0.4)]">
-                <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
+              <div style={{
+                width: 34, height: 34, borderRadius: 9,
+                background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Zap size={15} color="var(--accent-text)" strokeWidth={2.5} />
               </div>
             </div>
           </div>
 
-          {/* Progress bar */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-white/35">
-                {completedCount}/{totalCount} tasks complete
-              </span>
-              <span className="text-[11px] font-semibold text-white/50">
-                {Math.round(progressPercent)}%
-              </span>
-            </div>
-            <div className="h-1.5 bg-white/6 rounded-full overflow-hidden">
+          {/* Progress */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="progress-track" style={{ flex: 1 }}>
               <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 progress-glow"
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercent}%` }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className="progress-fill"
+                style={{ width: `${pct}%` }}
+                layout
+                transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
               />
             </div>
+            <span style={{ fontSize: 11, color: 'var(--tx-3)', fontFamily: 'Geist Mono, monospace', flexShrink: 0 }}>
+              {done}/{total}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* All complete celebration */}
-      <AnimatePresence>
-        {totalCount > 0 && completedCount === totalCount && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mx-4 mt-4 p-4 rounded-2xl bg-gradient-to-r from-indigo-500/15 to-violet-500/15 border border-indigo-500/20 flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
-              <CheckCircle2 className="w-5 h-5 text-indigo-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white">All done! 🎉</p>
-              <p className="text-xs text-white/40">You crushed today&apos;s routine!</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Body */}
+      <div className="page-body">
+        <div style={{ maxWidth: 560, margin: '0 auto', padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-      {/* Task sections */}
-      <div className="px-4 pt-4 max-w-xl mx-auto space-y-6">
-        {isLoading ? (
-          <TaskSkeleton />
-        ) : totalCount === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-16"
-          >
-            <div className="w-16 h-16 rounded-2xl bg-white/4 border border-white/8 flex items-center justify-center mx-auto mb-4">
-              <Zap className="w-8 h-8 text-white/20" />
-            </div>
-            <h3 className="text-base font-semibold text-white/50 mb-1">No tasks yet</h3>
-            <p className="text-sm text-white/25 mb-6">Add your first task to start building your routine</p>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-medium px-5 py-2.5 rounded-xl text-sm hover:opacity-90 transition-opacity"
-            >
-              <Plus className="w-4 h-4" /> Add first task
-            </button>
-          </motion.div>
-        ) : (
-          (['morning', 'afternoon', 'evening'] as TimeOfDay[]).map((section) => {
-            const sectionTasks = groupedTasks[section];
-            if (sectionTasks.length === 0) return null;
-            const info = SECTION_ICONS[section];
-
-            return (
-              <div key={section}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-white/60">{info.label}</span>
-                    <span className="text-xs text-white/25 bg-white/5 px-2 py-0.5 rounded-full">
-                      {sectionTasks.filter((t) => t.isCompleted).length}/{sectionTasks.length}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setDefaultSection(section);
-                      setEditTask(null);
-                      setIsModalOpen(true);
-                    }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-white/6 transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+          {/* All done banner */}
+          <AnimatePresence>
+            {allDone && (
+              <motion.div
+                initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                style={{
+                  padding: '14px 16px',
+                  background: 'var(--green-dim)',
+                  border: '1px solid rgba(52,211,153,0.18)',
+                  borderRadius: 12,
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 22 }}>🎉</span>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--green)', letterSpacing: '-0.01em' }}>
+                    All done for today
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--tx-3)', marginTop: 1 }}>
+                    Incredible — you completed every task.
+                  </p>
                 </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-                <AnimatePresence mode="popLayout">
-                  {sectionTasks.map((task, i) => (
-                    <motion.div
-                      key={task.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-                      transition={{ delay: i * 0.04 }}
-                    >
-                      <SwipeableTaskCard
-                        task={task}
-                        onComplete={handleComplete}
-                        onDelete={handleDelete}
-                        onEdit={(t) => {
-                          setEditTask(t);
-                          setIsModalOpen(true);
-                        }}
-                      />
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+          {/* Content */}
+          {loading ? (
+            <TaskSkeleton />
+          ) : total === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ textAlign: 'center', padding: '60px 20px' }}
+            >
+              <div style={{
+                width: 64, height: 64, borderRadius: 18,
+                background: 'var(--bg-3)', border: '1px solid var(--border-2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 28, margin: '0 auto 16px',
+              }}>
+                ⚡
               </div>
-            );
-          })
-        )}
+              <p style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--tx-2)', marginBottom: 6 }}>
+                No tasks yet
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--tx-3)', marginBottom: 24, lineHeight: 1.5 }}>
+                Build your routine by adding your first task below.
+              </p>
+              <button
+                onClick={() => { setEditTask(null); setModalOpen(true); }}
+                className="btn btn-accent"
+                style={{ margin: '0 auto' }}
+              >
+                <Plus size={14} strokeWidth={2.5} /> Add first task
+              </button>
+            </motion.div>
+          ) : (
+            SECTIONS.map(sec => {
+              const list = grouped[sec.key];
+              if (!list.length) return null;
+              const secDone = list.filter(t => t.isCompleted).length;
 
-        {/* Bottom add button */}
-        {!isLoading && (
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            onClick={() => { setEditTask(null); setIsModalOpen(true); }}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-white/12 text-white/30 hover:text-white/60 hover:border-white/20 hover:bg-white/3 transition-all text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" /> Add task
-          </motion.button>
-        )}
+              return (
+                <div key={sec.key}>
+                  {/* Section header */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{ fontSize: 14 }}>{sec.emoji}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--tx-3)' }}>
+                        {sec.label}
+                      </span>
+                      <span style={{
+                        fontSize: 10, fontFamily: 'Geist Mono, monospace',
+                        color: secDone === list.length ? 'var(--green)' : 'var(--tx-4)',
+                        background: secDone === list.length ? 'var(--green-dim)' : 'var(--bg-3)',
+                        border: `1px solid ${secDone === list.length ? 'rgba(52,211,153,0.2)' : 'var(--border)'}`,
+                        borderRadius: 6, padding: '2px 6px', fontWeight: 600,
+                      }}>
+                        {secDone}/{list.length}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => { setDefSection(sec.key); setEditTask(null); setModalOpen(true); }}
+                      style={{
+                        width: 26, height: 26, borderRadius: 7, border: '1px solid var(--border-2)',
+                        background: 'transparent', color: 'var(--tx-3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                    </button>
+                  </div>
+
+                  {/* Tasks */}
+                  <AnimatePresence mode="popLayout">
+                    {list.map((task, i) => (
+                      <motion.div
+                        key={task.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ delay: i * 0.035, duration: 0.2 }}
+                      >
+                        <SwipeableTaskCard
+                          task={task}
+                          onComplete={handleComplete}
+                          onDelete={handleDelete}
+                          onEdit={t => { setEditTask(t); setModalOpen(true); }}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              );
+            })
+          )}
+
+          {/* Bottom add row */}
+          {!loading && total > 0 && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              onClick={() => { setEditTask(null); setModalOpen(true); }}
+              style={{
+                width: '100%', padding: '12px',
+                background: 'transparent', border: '1px dashed var(--border-2)',
+                borderRadius: 12, color: 'var(--tx-3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-3)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--tx-2)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-2)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--tx-3)'; }}
+            >
+              <Plus size={14} strokeWidth={2} /> Add task
+            </motion.button>
+          )}
+
+          <div className="with-nav" />
+        </div>
       </div>
 
       {/* FAB */}
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ delay: 0.3, type: 'spring', stiffness: 400, damping: 20 }}
-        onClick={() => { setEditTask(null); setIsModalOpen(true); }}
-        className={cn(
-          'fixed right-4 z-30 w-14 h-14 rounded-2xl',
-          'bg-gradient-to-br from-indigo-500 to-violet-600',
-          'flex items-center justify-center',
-          'shadow-[0_4px_24px_rgba(99,102,241,0.5)]',
-          'hover:opacity-90 active:scale-90 transition-all',
+      <AnimatePresence>
+        {!loading && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ delay: 0.3, type: 'spring', stiffness: 500, damping: 28 }}
+            onClick={() => { setEditTask(null); setModalOpen(true); }}
+            style={{
+              position: 'fixed',
+              right: 20,
+              bottom: `calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px)`,
+              zIndex: 50,
+              width: 52, height: 52, borderRadius: 15,
+              background: 'var(--accent)', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(123,104,238,0.45)',
+              color: 'white',
+            }}
+            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.05 }}
+          >
+            <Plus size={22} strokeWidth={2.5} />
+          </motion.button>
         )}
-        style={{ bottom: 'calc(80px + env(safe-area-inset-bottom))' }}
-        whileTap={{ scale: 0.9 }}
-      >
-        <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
-      </motion.button>
+      </AnimatePresence>
 
       <TaskModal
-        isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setEditTask(null); }}
+        isOpen={modalOpen}
+        onClose={() => { setModalOpen(false); setEditTask(null); }}
         onSave={handleSave}
         editTask={editTask}
-        defaultTimeOfDay={defaultSection}
+        defaultTimeOfDay={defSection}
       />
     </div>
   );

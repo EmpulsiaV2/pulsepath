@@ -1,9 +1,15 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { motion, useMotionValue, useTransform, useAnimation, PanInfo } from 'framer-motion';
-import { CheckCircle2, Trash2, Clock, MoreHorizontal, GripVertical } from 'lucide-react';
-import { formatTime, cn } from '@/lib/utils';
+import { useRef } from 'react';
+import {
+  motion,
+  useMotionValue,
+  useTransform,
+  useAnimation,
+  type PanInfo,
+} from 'framer-motion';
+import { Check, Trash2, Clock, MoreHorizontal, GripVertical } from 'lucide-react';
+import { formatTime } from '@/lib/utils';
 import type { Task } from '@/types';
 
 interface Props {
@@ -11,149 +17,181 @@ interface Props {
   onComplete: (id: string, completed: boolean) => void;
   onDelete: (id: string) => void;
   onEdit: (task: Task) => void;
-  isDragging?: boolean;
-  dragHandleProps?: Record<string, unknown>;
 }
 
-const SWIPE_THRESHOLD = 80;
-const MAX_SWIPE = 120;
+const THRESHOLD = 72;
+const MAX     = 100;
 
-export function SwipeableTaskCard({ task, onComplete, onDelete, onEdit, isDragging, dragHandleProps }: Props) {
-  const x = useMotionValue(0);
+// LEFT swipe = complete  (green, right side)
+// RIGHT swipe = delete   (red, left side)
+
+export function SwipeableTaskCard({ task, onComplete, onDelete, onEdit }: Props) {
+  const x        = useMotionValue(0);
   const controls = useAnimation();
-  const isDraggingSwipe = useRef(false);
+  const swiping  = useRef(false);
 
-  const bgColorComplete = useTransform(x, [0, SWIPE_THRESHOLD], ['rgba(16,185,129,0)', 'rgba(16,185,129,0.15)']);
-  const bgColorDelete = useTransform(x, [-SWIPE_THRESHOLD, 0], ['rgba(239,68,68,0.15)', 'rgba(239,68,68,0)']);
+  // Right-swipe reveal (delete) — positive x
+  const deleteOpacity = useTransform(x, [0, THRESHOLD * 0.4, THRESHOLD], [0, 0.5, 1]);
+  const deleteScale   = useTransform(x, [0, THRESHOLD], [0.6, 1]);
+  const deleteBg      = useTransform(x, [0, THRESHOLD], ['rgba(248,113,113,0)', 'rgba(248,113,113,0.12)']);
 
-  const completeOpacity = useTransform(x, [0, SWIPE_THRESHOLD * 0.5, SWIPE_THRESHOLD], [0, 0.4, 1]);
-  const deleteOpacity = useTransform(x, [-SWIPE_THRESHOLD, -SWIPE_THRESHOLD * 0.5, 0], [1, 0.4, 0]);
+  // Left-swipe reveal (complete) — negative x
+  const doneOpacity   = useTransform(x, [-THRESHOLD, -THRESHOLD * 0.4, 0], [1, 0.5, 0]);
+  const doneScale     = useTransform(x, [-THRESHOLD, 0], [1, 0.6]);
+  const doneBg        = useTransform(x, [-THRESHOLD, 0], ['rgba(52,211,153,0.12)', 'rgba(52,211,153,0)']);
 
-  const completeScale = useTransform(x, [0, SWIPE_THRESHOLD], [0.5, 1]);
-  const deleteScale = useTransform(x, [-SWIPE_THRESHOLD, 0], [1, 0.5]);
-
-  const handleDragEnd = async (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+  const handleDragEnd = async (_: unknown, info: PanInfo) => {
+    swiping.current = false;
     const { offset } = info;
 
-    if (offset.x > SWIPE_THRESHOLD) {
-      // Complete
-      await controls.start({ x: 300, opacity: 0, transition: { duration: 0.3 } });
-      onComplete(task.id, !task.isCompleted);
-      controls.start({ x: 0, opacity: 1 });
-    } else if (offset.x < -SWIPE_THRESHOLD) {
-      // Delete
-      await controls.start({ x: -400, opacity: 0, transition: { duration: 0.3 } });
+    if (offset.x > THRESHOLD) {
+      // Delete — swiped right
+      await controls.start({ x: 360, opacity: 0, transition: { duration: 0.25, ease: 'easeIn' } });
       onDelete(task.id);
+    } else if (offset.x < -THRESHOLD) {
+      // Complete — swiped left
+      await controls.start({ x: -360, opacity: 0, transition: { duration: 0.25, ease: 'easeIn' } });
+      onComplete(task.id, !task.isCompleted);
     } else {
-      controls.start({ x: 0, transition: { type: 'spring', stiffness: 400, damping: 30 } });
+      controls.start({ x: 0, transition: { type: 'spring', stiffness: 500, damping: 35 } });
     }
   };
 
-  const completedOpacity = task.isCompleted ? 0.5 : 1;
-
   return (
-    <div className="relative overflow-hidden rounded-2xl mb-2.5">
-      {/* Action backgrounds */}
-      <div className="absolute inset-0 flex items-center justify-between px-5 pointer-events-none">
-        {/* Complete (right swipe) */}
-        <motion.div
-          style={{ opacity: completeOpacity, scale: completeScale }}
-          className="flex items-center gap-2 text-green-400"
-        >
-          <CheckCircle2 className="w-6 h-6" strokeWidth={2.5} />
-          <span className="text-sm font-semibold">{task.isCompleted ? 'Undo' : 'Done!'}</span>
+    <div style={{ position: 'relative', marginBottom: 6, overflow: 'hidden', borderRadius: 12 }}>
+
+      {/* Left reveal: DELETE (right swipe) */}
+      <motion.div
+        style={{
+          position: 'absolute', inset: 0, borderRadius: 12,
+          display: 'flex', alignItems: 'center', paddingLeft: 20,
+          gap: 8,
+          backgroundColor: deleteBg,
+        }}
+      >
+        <motion.div style={{ opacity: deleteOpacity, scale: deleteScale, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Trash2 size={16} color="var(--red)" strokeWidth={2} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)', letterSpacing: '-0.01em' }}>Delete</span>
         </motion.div>
+      </motion.div>
 
-        {/* Delete (left swipe) */}
-        <motion.div
-          style={{ opacity: deleteOpacity, scale: deleteScale }}
-          className="flex items-center gap-2 text-red-400 ml-auto"
-        >
-          <span className="text-sm font-semibold">Delete</span>
-          <Trash2 className="w-6 h-6" strokeWidth={2.5} />
+      {/* Right reveal: COMPLETE (left swipe) */}
+      <motion.div
+        style={{
+          position: 'absolute', inset: 0, borderRadius: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          paddingRight: 20, gap: 8,
+          backgroundColor: doneBg,
+        }}
+      >
+        <motion.div style={{ opacity: doneOpacity, scale: doneScale, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)', letterSpacing: '-0.01em' }}>
+            {task.isCompleted ? 'Undo' : 'Done'}
+          </span>
+          <Check size={16} color="var(--green)" strokeWidth={2.5} />
         </motion.div>
-      </div>
+      </motion.div>
 
-      {/* Background color */}
-      <motion.div className="absolute inset-0 rounded-2xl" style={{ backgroundColor: bgColorComplete }} />
-      <motion.div className="absolute inset-0 rounded-2xl" style={{ backgroundColor: bgColorDelete }} />
-
-      {/* Main card */}
+      {/* Card */}
       <motion.div
         drag="x"
-        dragConstraints={{ left: -MAX_SWIPE, right: MAX_SWIPE }}
-        dragElastic={{ left: 0.2, right: 0.2 }}
-        style={{ x, opacity: completedOpacity }}
+        dragConstraints={{ left: -MAX, right: MAX }}
+        dragElastic={{ left: 0.18, right: 0.18 }}
+        style={{
+          x,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '12px 12px 12px 10px',
+          background: 'var(--bg-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          cursor: 'grab',
+          position: 'relative',
+          opacity: task.isCompleted ? 0.45 : 1,
+        }}
         animate={controls}
-        onDragStart={() => { isDraggingSwipe.current = true; }}
+        onDragStart={() => { swiping.current = true; }}
         onDragEnd={handleDragEnd}
-        className={cn(
-          'relative flex items-center gap-3 px-4 py-3.5 rounded-2xl',
-          'bg-[#141417] border border-white/6',
-          'cursor-grab active:cursor-grabbing select-none',
-          isDragging && 'shadow-2xl scale-[1.02] z-50',
-        )}
-        whileTap={{ scale: isDragging ? 1.02 : 1 }}
+        whileTap={{ cursor: 'grabbing' }}
       >
-        {/* Drag handle */}
-        <div
-          {...dragHandleProps}
-          className="touch-none text-white/15 hover:text-white/30 transition-colors flex-shrink-0 cursor-grab active:cursor-grabbing"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="w-4 h-4" />
-        </div>
+        {/* Color bar */}
+        <div style={{
+          position: 'absolute',
+          left: 0, top: '20%', bottom: '20%',
+          width: 3,
+          background: task.color,
+          borderRadius: '0 2px 2px 0',
+          opacity: task.isCompleted ? 0.4 : 0.9,
+        }} />
 
-        {/* Emoji + color dot */}
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 relative"
-          style={{ background: `${task.color}18`, border: `1px solid ${task.color}30` }}
-        >
+        {/* Drag grip */}
+        <GripVertical
+          size={14}
+          color="var(--tx-4)"
+          style={{ flexShrink: 0, marginLeft: 6 }}
+        />
+
+        {/* Emoji chip */}
+        <div style={{
+          width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+          background: `${task.color}16`,
+          border: `1px solid ${task.color}28`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 18, position: 'relative',
+        }}>
           {task.emoji}
           {task.isCompleted && (
-            <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-green-400" />
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: 8,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Check size={14} color="var(--green)" strokeWidth={2.5} />
             </div>
           )}
         </div>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <p className={cn(
-            'text-sm font-medium leading-tight truncate',
-            task.isCompleted ? 'line-through text-white/30' : 'text-white/90'
-          )}>
+        {/* Text */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{
+            fontSize: 14,
+            fontWeight: 500,
+            letterSpacing: '-0.01em',
+            color: task.isCompleted ? 'var(--tx-3)' : 'var(--tx-1)',
+            textDecoration: task.isCompleted ? 'line-through' : 'none',
+            textDecorationColor: 'var(--tx-4)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
             {task.title}
           </p>
           {task.scheduledTime && (
-            <div className="flex items-center gap-1 mt-0.5">
-              <Clock className="w-3 h-3 text-white/25" />
-              <span className="text-[11px] text-white/35">{formatTime(task.scheduledTime)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+              <Clock size={11} color="var(--tx-4)" />
+              <span style={{ fontSize: 11, color: 'var(--tx-3)', fontFamily: 'Geist Mono, monospace' }}>
+                {formatTime(task.scheduledTime)}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Color accent + notes */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {task.notes && (
-            <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(task);
-            }}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-white/6 transition-all"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Left color bar */}
-        <div
-          className="absolute left-0 top-3 bottom-3 w-0.5 rounded-full"
-          style={{ backgroundColor: task.color }}
-        />
+        {/* More button */}
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onEdit(task); }}
+          style={{
+            width: 30, height: 30, borderRadius: 8, border: 'none',
+            background: 'transparent', color: 'var(--tx-4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0, transition: 'background 0.15s, color 0.15s',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-3)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--tx-2)'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--tx-4)'; }}
+        >
+          <MoreHorizontal size={15} strokeWidth={2} />
+        </button>
       </motion.div>
     </div>
   );

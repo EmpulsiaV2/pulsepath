@@ -1,249 +1,205 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import Link from 'next/link';
+import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { Zap, CheckCircle2, TrendingUp, Bell, Repeat2, Palette } from 'lucide-react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Zap, ArrowRight, Check } from 'lucide-react';
+
+const FEATURES = [
+  { label: 'Weekly scheduling',      desc: 'Set tasks for specific days of the week' },
+  { label: 'Swipe to complete',      desc: 'Left to done, right to delete — fluid gestures' },
+  { label: 'Streak tracking',        desc: 'Build momentum with 7-day history' },
+  { label: 'Push notifications',     desc: 'Get reminded before tasks are due' },
+  { label: 'Add to Home Screen',     desc: 'App-like experience from your home screen' },
+  { label: 'Morning / Evening split','desc': 'Organize tasks by time of day' },
+];
 
 export default function LandingPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
-
-  useEffect(() => {
-    if (status === 'authenticated') {
-      router.push('/dashboard');
-    }
-  }, [status, router]);
-
-  const features = [
-    { icon: CheckCircle2, title: 'Swipe to Complete', desc: 'Fluid swipe gestures to mark tasks done or delete them', color: '#10b981' },
-    { icon: TrendingUp, title: '7-Day Streaks', desc: 'Build momentum with streak tracking and completion history', color: '#6366f1' },
-    { icon: Bell, title: 'Smart Notifications', desc: 'Get reminded before tasks are due, even on mobile', color: '#f97316' },
-    { icon: Repeat2, title: 'Recurring Routines', desc: 'Set tasks to repeat on specific days of the week', color: '#8b5cf6' },
-    { icon: Palette, title: 'Custom Icons & Colors', desc: 'Personalize every task with emojis and color accents', color: '#06b6d4' },
-    { icon: Zap, title: 'Lightning Fast', desc: 'Optimized for mobile with smooth 60fps animations', color: '#f59e0b' },
-  ];
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 24 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
-  };
-
+  useEffect(() => { if (status === 'authenticated') router.push('/dashboard'); }, [status, router]);
   if (status === 'loading') return null;
 
   return (
-    <div className="min-h-screen bg-[#09090c] overflow-x-hidden">
-      {/* Background mesh */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-1/2 -left-1/2 w-full h-full rounded-full bg-indigo-600/10 blur-[120px]" />
-        <div className="absolute -bottom-1/2 -right-1/2 w-3/4 h-3/4 rounded-full bg-violet-600/8 blur-[120px]" />
-        <div className="absolute top-1/3 left-1/2 w-1/2 h-1/2 rounded-full bg-cyan-500/5 blur-[100px]" />
+    <div style={{ minHeight: '100dvh', background: 'var(--bg)', color: 'var(--tx-1)', fontFamily: 'Geist, sans-serif' }}>
+
+      {/* Background gradients */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 0 }}>
+        <div style={{ position: 'absolute', top: '-30%', left: '50%', transform: 'translateX(-50%)', width: 800, height: 600, background: 'radial-gradient(ellipse, rgba(123,104,238,0.07) 0%, transparent 65%)' }} />
+        <div style={{ position: 'absolute', bottom: '10%', right: '-20%', width: 500, height: 500, background: 'radial-gradient(ellipse, rgba(96,165,250,0.04) 0%, transparent 65%)' }} />
       </div>
 
       {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-5 max-w-5xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-2"
-        >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.5)]">
-            <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
+      <nav style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', maxWidth: 960, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Zap size={15} color="white" strokeWidth={2.5} />
           </div>
-          <span className="text-lg font-bold tracking-tight">PulsePath</span>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-3"
-        >
-          <Link
-            href="/login"
-            className="text-sm text-white/60 hover:text-white transition-colors px-3 py-2"
-          >
-            Log in
+          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>PulsePath</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/login" style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, color: 'var(--tx-2)', textDecoration: 'none', borderRadius: 9, transition: 'color 0.15s' }}>
+            Sign in
           </Link>
-          <Link
-            href="/signup"
-            className="text-sm font-medium bg-gradient-to-r from-indigo-500 to-violet-600 text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
-          >
+          <Link href="/signup" style={{ padding: '8px 14px', fontSize: 13, fontWeight: 600, background: 'var(--accent)', color: 'white', textDecoration: 'none', borderRadius: 9 }}>
             Get started
           </Link>
-        </motion.div>
+        </div>
       </nav>
 
       {/* Hero */}
       <motion.section
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="relative z-10 text-center px-6 pt-16 pb-20 max-w-3xl mx-auto"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        style={{ position: 'relative', zIndex: 10, maxWidth: 720, margin: '0 auto', padding: '80px 24px 64px', textAlign: 'center' }}
       >
-        <motion.div variants={itemVariants} className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-sm text-white/70 mb-8">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          Now with streak tracking & push notifications
-        </motion.div>
+        {/* Pill badge */}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'var(--bg-3)', border: '1px solid var(--border-2)',
+          borderRadius: 100, padding: '5px 12px', fontSize: 12, fontWeight: 600,
+          color: 'var(--tx-2)', marginBottom: 28, letterSpacing: '-0.01em',
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} />
+          Daily routine tracker
+        </div>
 
-        <motion.h1 variants={itemVariants} className="text-5xl sm:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
-          Build routines that{' '}
-          <span className="neon-text">actually stick</span>
-        </motion.h1>
+        <h1 style={{ fontSize: 'clamp(38px, 7vw, 68px)', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.0, marginBottom: 20 }}>
+          Your daily routine,
+          <br />
+          <span style={{ background: 'linear-gradient(135deg, var(--accent-text) 0%, var(--accent) 60%, var(--blue) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+            finally effortless
+          </span>
+        </h1>
 
-        <motion.p variants={itemVariants} className="text-lg sm:text-xl text-white/50 max-w-2xl mx-auto mb-10 leading-relaxed">
-          A beautiful daily routine tracker that feels like a native app. Plan your day, track your habits, and build powerful momentum — one task at a time.
-        </motion.p>
+        <p style={{ fontSize: 17, color: 'var(--tx-2)', lineHeight: 1.65, maxWidth: 480, margin: '0 auto 36px', letterSpacing: '-0.01em' }}>
+          Schedule tasks for specific days of the week, swipe to complete, track your streaks — a productivity app that gets out of your way.
+        </p>
 
-        <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link
-            href="/signup"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold px-8 py-4 rounded-2xl text-lg hover:opacity-90 active:scale-95 transition-all shadow-[0_0_30px_rgba(99,102,241,0.4)]"
-          >
-            <Zap className="w-5 h-5" strokeWidth={2.5} />
-            Start for free
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link href="/signup" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'var(--accent)', color: 'white',
+            padding: '13px 22px', borderRadius: 12, fontSize: 14, fontWeight: 700,
+            textDecoration: 'none', letterSpacing: '-0.01em',
+            boxShadow: '0 4px 24px rgba(123,104,238,0.35)',
+          }}>
+            Get started free <ArrowRight size={15} />
           </Link>
-          <Link
-            href="/login"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/5 border border-white/10 text-white font-medium px-8 py-4 rounded-2xl text-lg hover:bg-white/10 active:scale-95 transition-all"
-          >
-            I have an account
+          <Link href="/login" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'var(--bg-3)', color: 'var(--tx-2)',
+            border: '1px solid var(--border-2)',
+            padding: '13px 22px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+            textDecoration: 'none', letterSpacing: '-0.01em',
+          }}>
+            Sign in
           </Link>
-        </motion.div>
-
-        {/* Mock phone */}
-        <motion.div
-          variants={itemVariants}
-          className="mt-16 relative mx-auto max-w-xs"
-        >
-          <div className="relative bg-[#111114] rounded-[2rem] border border-white/10 p-4 shadow-[0_40px_80px_rgba(0,0,0,0.6)]" style={{ aspectRatio: '9/18' }}>
-            {/* Mock UI */}
-            <div className="h-full flex flex-col gap-3 overflow-hidden">
-              <div className="flex items-center justify-between px-1">
-                <div>
-                  <div className="h-3 w-20 bg-white/20 rounded-full mb-1" />
-                  <div className="h-2 w-14 bg-white/10 rounded-full" />
-                </div>
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/30 to-violet-500/30 border border-white/10" />
-              </div>
-              {/* Progress bar */}
-              <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                <div className="h-full w-3/5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 progress-glow" />
-              </div>
-              {/* Task cards */}
-              {[
-                { emoji: '🌅', label: 'Wake up', done: true, color: '#f59e0b', time: '7:00 AM' },
-                { emoji: '🦷', label: 'Brush teeth', done: true, color: '#06b6d4', time: '7:05 AM' },
-                { emoji: '🚿', label: 'Morning shower', done: false, color: '#3b82f6', time: '7:15 AM' },
-                { emoji: '💪', label: 'Exercise', done: false, color: '#10b981', time: '8:00 AM' },
-                { emoji: '☕', label: 'Breakfast', done: false, color: '#f97316', time: '8:45 AM' },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-3 p-3 rounded-xl border ${
-                    item.done
-                      ? 'bg-white/3 border-white/5 opacity-50'
-                      : 'bg-white/5 border-white/8'
-                  }`}
-                >
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-                    style={{ background: `${item.color}20` }}
-                  >
-                    {item.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-medium truncate ${item.done ? 'line-through text-white/30' : 'text-white/80'}`}>
-                      {item.label}
-                    </div>
-                    <div className="text-[10px] text-white/30">{item.time}</div>
-                  </div>
-                  {item.done && (
-                    <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                      <CheckCircle2 className="w-3 h-3 text-green-400" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Glow under phone */}
-          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-3/4 h-12 bg-indigo-500/20 blur-2xl rounded-full" />
-        </motion.div>
+        </div>
       </motion.section>
 
-      {/* Features */}
-      <section className="relative z-10 max-w-5xl mx-auto px-6 py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-12"
-        >
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">Everything you need to build<br />powerful daily habits</h2>
-          <p className="text-white/40 text-lg">Designed for people who take their routines seriously.</p>
-        </motion.div>
+      {/* Mock phone */}
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.6 }}
+        style={{ position: 'relative', zIndex: 10, maxWidth: 280, margin: '0 auto 80px', padding: '0 24px' }}
+      >
+        <div style={{
+          background: 'var(--bg-2)', border: '1px solid var(--border-2)',
+          borderRadius: 28, padding: '20px 16px',
+          boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)',
+        }}>
+          {/* Phone header */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div>
+                <div style={{ height: 8, width: 80, borderRadius: 4, background: 'var(--bg-4)', marginBottom: 5 }} />
+                <div style={{ height: 14, width: 110, borderRadius: 4, background: 'var(--bg-3)' }} />
+              </div>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)' }} />
+            </div>
+            <div style={{ height: 2, background: 'var(--border)', borderRadius: 1, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: '60%', background: 'var(--accent)', borderRadius: 1 }} />
+            </div>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map((feature, i) => (
+          {/* Mock tasks */}
+          {[
+            { e: '🌅', t: 'Wake up',       c: '#fb923c', time: '7:00 AM', done: true  },
+            { e: '🦷', t: 'Brush teeth',   c: '#60a5fa', time: '7:05 AM', done: true  },
+            { e: '🚿', t: 'Cold shower',   c: '#34d399', time: '7:15 AM', done: false },
+            { e: '💪', t: 'Workout',       c: '#7b68ee', time: '8:00 AM', done: false },
+            { e: '📖', t: 'Read 20 pages', c: '#f472b6', time: '9:00 AM', done: false },
+          ].map((item, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', marginBottom: 5,
+              background: item.done ? 'transparent' : 'var(--bg-3)',
+              border: `1px solid ${item.done ? 'var(--border)' : 'var(--border-2)'}`,
+              borderRadius: 9, opacity: item.done ? 0.4 : 1,
+            }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: `${item.c}18`, border: `1px solid ${item.c}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{item.e}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: item.done ? 'var(--tx-4)' : 'var(--tx-1)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.t}</div>
+                <div style={{ fontSize: 9, color: 'var(--tx-4)', fontFamily: 'Geist Mono, monospace' }}>{item.time}</div>
+              </div>
+              {item.done && <Check size={12} color="var(--green)" strokeWidth={2.5} />}
+            </div>
+          ))}
+        </div>
+        {/* glow */}
+        <div style={{ position: 'absolute', bottom: -20, left: '50%', transform: 'translateX(-50%)', width: '70%', height: 30, background: 'rgba(123,104,238,0.2)', filter: 'blur(20px)', borderRadius: '50%' }} />
+      </motion.div>
+
+      {/* Features grid */}
+      <motion.section
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        style={{ position: 'relative', zIndex: 10, maxWidth: 760, margin: '0 auto', padding: '0 24px 80px' }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+          {FEATURES.map((f, i) => (
             <motion.div
               key={i}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: i * 0.08 }}
-              className="p-6 rounded-2xl bg-white/4 border border-white/6 hover:border-white/12 transition-all group"
+              transition={{ delay: i * 0.06 }}
+              style={{ padding: '16px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12 }}
             >
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
-                style={{ background: `${feature.color}20`, border: `1px solid ${feature.color}30` }}
-              >
-                <feature.icon className="w-5 h-5" style={{ color: feature.color }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 5, background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Check size={10} color="var(--accent-text)" strokeWidth={3} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>{f.label}</span>
               </div>
-              <h3 className="font-semibold text-white mb-2">{feature.title}</h3>
-              <p className="text-sm text-white/40 leading-relaxed">{feature.desc}</p>
+              <p style={{ fontSize: 12, color: 'var(--tx-3)', lineHeight: 1.5, paddingLeft: 25 }}>{f.desc}</p>
             </motion.div>
           ))}
         </div>
-      </section>
-
-      {/* CTA */}
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="relative z-10 text-center px-6 py-20 max-w-2xl mx-auto"
-      >
-        <h2 className="text-3xl sm:text-4xl font-bold mb-4">Ready to build your perfect routine?</h2>
-        <p className="text-white/40 mb-8">Join thousands of people who&apos;ve transformed their mornings.</p>
-        <Link
-          href="/signup"
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold px-8 py-4 rounded-2xl text-lg hover:opacity-90 active:scale-95 transition-all shadow-[0_0_30px_rgba(99,102,241,0.3)]"
-        >
-          Get started free
-          <Zap className="w-5 h-5" strokeWidth={2.5} />
-        </Link>
       </motion.section>
 
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-white/5 py-8 text-center text-white/25 text-sm">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-            <Zap className="w-3 h-3 text-white" strokeWidth={2.5} />
-          </div>
-          <span className="font-semibold text-white/40">PulsePath</span>
-        </div>
-        <p>© 2025 PulsePath. Built for peak performance.</p>
+      {/* CTA */}
+      <section style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 24px 80px' }}>
+        <Link href="/signup" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: 'var(--accent)', color: 'white',
+          padding: '14px 28px', borderRadius: 13, fontSize: 15, fontWeight: 700,
+          textDecoration: 'none', letterSpacing: '-0.01em',
+          boxShadow: '0 4px 24px rgba(123,104,238,0.3)',
+        }}>
+          Start for free <ArrowRight size={16} />
+        </Link>
+        <p style={{ fontSize: 12, color: 'var(--tx-4)', marginTop: 12 }}>No credit card required</p>
+      </section>
+
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '20px 24px', textAlign: 'center', position: 'relative', zIndex: 10 }}>
+        <p style={{ fontSize: 12, color: 'var(--tx-4)' }}>© 2025 PulsePath</p>
       </footer>
     </div>
   );

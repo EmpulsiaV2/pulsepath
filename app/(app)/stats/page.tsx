@@ -3,319 +3,265 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
-import { Flame, TrendingUp, CheckCircle2, Target, Trophy, Zap } from 'lucide-react';
-import { StatSkeleton } from '@/components/ui/Skeletons';
-import { cn } from '@/lib/utils';
+import { Flame, Trophy, CheckCircle2, Target } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-interface DayStats {
-  date: string;
-  total: number;
-  completed: number;
-  percentage: number;
-}
-
+interface DayStats { date: string; total: number; completed: number; percentage: number; }
 interface StatsData {
   streak: { current: number; longest: number };
   todayProgress: { completed: number; total: number; percentage: number };
   dayStats: DayStats[];
-  topTasks: Array<{ task: { id: string; title: string; emoji: string; color: string } | undefined; completions: number }>;
+  topTasks: Array<{ task?: { id: string; title: string; emoji: string; color: string }; completions: number }>;
   totalTasks: number;
 }
 
-export default function StatsPage() {
-  const [stats, setStats] = useState<StatsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
+  return (
+    <div style={{
+      padding: '16px', borderRadius: 12,
+      background: 'var(--bg-2)', border: '1px solid var(--border)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        <Icon size={13} style={{ color }} strokeWidth={2} />
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--tx-3)' }}>{label}</span>
+      </div>
+      <p style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', fontFamily: 'Geist Mono, monospace', color }}>{value}</p>
+    </div>
+  );
+}
 
-  const loadStats = useCallback(async () => {
+export default function StatsPage() {
+  const [stats, setStats]   = useState<StatsData | null>(null);
+  const [loading, setLoad]  = useState(true);
+
+  const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/stats');
-      if (!res.ok) throw new Error();
-      setStats(await res.json());
-    } catch {
-      toast.error('Failed to load stats');
-    } finally {
-      setIsLoading(false);
-    }
+      const r = await fetch('/api/stats');
+      if (!r.ok) throw new Error();
+      setStats(await r.json());
+    } catch { toast.error('Failed to load stats'); }
+    finally { setLoad(false); }
   }, []);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
+  useEffect(() => { load(); }, [load]);
 
-  const getBarColor = (pct: number) => {
-    if (pct >= 100) return '#10b981';
-    if (pct >= 60) return '#6366f1';
-    if (pct >= 30) return '#f59e0b';
-    return '#ef4444';
-  };
-
-  const statCards = stats ? [
-    { icon: Flame, label: 'Current streak', value: `${stats.streak.current}d`, color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
-    { icon: Trophy, label: 'Longest streak', value: `${stats.streak.longest}d`, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-    { icon: CheckCircle2, label: 'Today', value: `${stats.todayProgress.completed}/${stats.todayProgress.total}`, color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-    { icon: Target, label: 'Completion rate', value: `${Math.round(stats.dayStats.reduce((a, d) => a + d.percentage, 0) / Math.max(stats.dayStats.length, 1))}%`, color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
-  ] : [];
+  const today = format(new Date(), 'yyyy-MM-dd');
 
   return (
-    <div className="h-full overflow-y-auto with-bottom-nav">
-      {/* Header */}
-      <div className="sticky top-0 z-20 bg-[#09090c]/90 backdrop-blur-xl border-b border-white/4 safe-top">
-        <div className="px-4 pt-4 pb-3 max-w-xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold">Statistics</h1>
-            <p className="text-xs text-white/35">Last 7 days overview</p>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-            <TrendingUp className="w-4 h-4 text-white" strokeWidth={2.5} />
-          </div>
+    <div className="page">
+      <div className="page-header" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+        <div style={{ padding: '16px 20px 14px', maxWidth: 560, margin: '0 auto' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--tx-3)', marginBottom: 3 }}>
+            Overview
+          </p>
+          <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em' }}>Statistics</h1>
         </div>
       </div>
 
-      <div className="px-4 pt-4 pb-6 max-w-xl mx-auto space-y-5">
-        {isLoading ? (
-          <StatSkeleton />
-        ) : !stats ? (
-          <div className="text-center py-16 text-white/30">No data available</div>
-        ) : (
-          <>
-            {/* Stat cards */}
-            <div className="grid grid-cols-2 gap-3">
-              {statCards.map((card, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.07 }}
-                  className="p-4 rounded-2xl border border-white/6"
-                  style={{ background: card.bg }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <card.icon className="w-4 h-4" style={{ color: card.color }} />
-                    <span className="text-xs text-white/40 font-medium">{card.label}</span>
-                  </div>
-                  <p className="text-2xl font-bold" style={{ color: card.color }}>{card.value}</p>
-                </motion.div>
+      <div className="page-body">
+        <div style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {loading ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="skel" style={{ height: 80, borderRadius: 12 }} />
               ))}
             </div>
-
-            {/* 7-day chart */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="p-4 rounded-2xl bg-white/3 border border-white/6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold">7-Day Completion</h2>
-                <span className="text-xs text-white/30">% of tasks done</span>
-              </div>
-
-              <div className="flex items-end gap-2 h-28">
-                {stats.dayStats.map((day, i) => {
-                  const isToday = day.date === format(new Date(), 'yyyy-MM-dd');
-                  const barH = Math.max(day.percentage, 4);
-                  const color = getBarColor(day.percentage);
-
-                  return (
-                    <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
-                      <span className="text-[10px] font-semibold" style={{ color }}>
-                        {day.percentage > 0 ? `${day.percentage}%` : ''}
-                      </span>
-                      <div className="w-full flex items-end justify-center" style={{ height: 80 }}>
-                        <motion.div
-                          initial={{ height: 0 }}
-                          animate={{ height: `${(barH / 100) * 80}px` }}
-                          transition={{ delay: i * 0.06, duration: 0.5, ease: 'easeOut' }}
-                          className="w-full rounded-lg"
-                          style={{
-                            background: `${color}${isToday ? 'ff' : '60'}`,
-                            boxShadow: isToday ? `0 0 12px ${color}50` : 'none',
-                          }}
-                        />
-                      </div>
-                      <span className={cn(
-                        'text-[10px] font-medium',
-                        isToday ? 'text-white/70' : 'text-white/25'
-                      )}>
-                        {isToday ? 'Today' : format(parseISO(day.date), 'EEE')}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-
-            {/* Streak calendar */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="p-4 rounded-2xl bg-white/3 border border-white/6"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/20 flex items-center justify-center flex-shrink-0">
-                  <Flame className="w-5 h-5 text-orange-400" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold">Streak Tracker</h2>
-                  <p className="text-xs text-white/35">
-                    {stats.streak.current > 0
-                      ? `🔥 ${stats.streak.current}-day streak! Keep it up.`
-                      : 'Complete all tasks to start a streak'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-1.5">
-                {stats.dayStats.map((day, i) => {
-                  const isToday = day.date === format(new Date(), 'yyyy-MM-dd');
-                  const completed = day.percentage === 100;
-                  const partial = day.percentage > 0 && day.percentage < 100;
-
-                  return (
-                    <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ delay: i * 0.06, type: 'spring', stiffness: 400 }}
-                        className={cn(
-                          'w-full aspect-square rounded-lg flex items-center justify-center text-sm',
-                          completed ? 'bg-orange-500/20 border border-orange-500/40' :
-                          partial ? 'bg-yellow-500/10 border border-yellow-500/20' :
-                          'bg-white/4 border border-white/6'
-                        )}
-                      >
-                        {completed ? '🔥' : partial ? '✨' : ''}
-                      </motion.div>
-                      <span className={cn(
-                        'text-[9px] font-medium',
-                        isToday ? 'text-white/60' : 'text-white/20'
-                      )}>
-                        {isToday ? 'Today' : format(parseISO(day.date), 'EEE')}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
-                <div className="text-center">
-                  <p className="text-lg font-bold text-orange-400">{stats.streak.current}</p>
-                  <p className="text-[10px] text-white/30">Current</p>
-                </div>
-                <div className="h-8 w-px bg-white/8" />
-                <div className="text-center">
-                  <p className="text-lg font-bold text-yellow-400">{stats.streak.longest}</p>
-                  <p className="text-[10px] text-white/30">Best ever</p>
-                </div>
-                <div className="h-8 w-px bg-white/8" />
-                <div className="text-center">
-                  <p className="text-lg font-bold text-indigo-400">
-                    {stats.dayStats.filter((d) => d.percentage === 100).length}
-                  </p>
-                  <p className="text-[10px] text-white/30">Perfect days</p>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Top tasks */}
-            {stats.topTasks.length > 0 && (
+          ) : !stats ? null : (
+            <>
+              {/* Stat cards */}
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="p-4 rounded-2xl bg-white/3 border border-white/6"
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}
               >
-                <div className="flex items-center gap-2 mb-4">
-                  <Zap className="w-4 h-4 text-indigo-400" />
-                  <h2 className="text-sm font-semibold">Most Completed (7 days)</h2>
-                </div>
+                <StatCard icon={Flame}       label="Streak"     value={`${stats.streak.current}d`}  color="var(--orange)" />
+                <StatCard icon={Trophy}      label="Best ever"  value={`${stats.streak.longest}d`}  color="var(--blue)" />
+                <StatCard icon={CheckCircle2} label="Today"     value={`${stats.todayProgress.completed}/${stats.todayProgress.total}`} color="var(--green)" />
+                <StatCard icon={Target}       label="Avg rate"  value={`${Math.round(stats.dayStats.reduce((a, d) => a + d.percentage, 0) / Math.max(stats.dayStats.length, 1))}%`} color="var(--accent-text)" />
+              </motion.div>
 
-                <div className="space-y-2.5">
-                  {stats.topTasks.map(({ task, completions }, i) => {
-                    if (!task) return null;
-                    const maxComp = stats.topTasks[0]?.completions ?? 1;
-                    const pct = (completions / Math.max(maxComp, 1)) * 100;
+              {/* 7-day bar chart */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+                style={{ padding: '18px 16px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>7-Day Completion</p>
+                  <p style={{ fontSize: 11, color: 'var(--tx-3)' }}>% of tasks done</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 96 }}>
+                  {stats.dayStats.map((day, i) => {
+                    const isTd  = day.date === today;
+                    const barH  = Math.max((day.percentage / 100) * 80, day.percentage > 0 ? 4 : 2);
+                    const color = day.percentage >= 100 ? 'var(--green)' : day.percentage >= 60 ? 'var(--accent)' : day.percentage > 0 ? 'var(--orange)' : 'var(--border-3)';
 
                     return (
-                      <div key={task.id} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{task.emoji}</span>
-                            <span className="text-sm text-white/70 truncate">{task.title}</span>
-                          </div>
-                          <span className="text-xs text-white/35 flex-shrink-0 ml-2">{completions}/7</span>
-                        </div>
-                        <div className="h-1 rounded-full bg-white/6 overflow-hidden">
+                      <div key={day.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
+                        <span style={{ fontSize: 9, fontFamily: 'Geist Mono, monospace', color: day.percentage > 0 ? color : 'var(--tx-4)', fontWeight: 600, height: 12, display: 'flex', alignItems: 'center' }}>
+                          {day.percentage > 0 ? `${day.percentage}` : ''}
+                        </span>
+                        <div style={{ width: '100%', height: 80, display: 'flex', alignItems: 'flex-end' }}>
                           <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ delay: 0.5 + i * 0.08, duration: 0.5 }}
-                            className="h-full rounded-full"
-                            style={{ backgroundColor: task.color }}
+                            initial={{ height: 0 }}
+                            animate={{ height: barH }}
+                            transition={{ delay: 0.15 + i * 0.05, duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
+                            style={{
+                              width: '100%', borderRadius: 4,
+                              background: isTd ? color : `${color}60`,
+                              boxShadow: isTd && day.percentage > 0 ? `0 0 10px ${color}40` : 'none',
+                            }}
                           />
                         </div>
+                        <span style={{
+                          fontSize: 10, fontWeight: 600,
+                          color: isTd ? 'var(--tx-1)' : 'var(--tx-3)',
+                          letterSpacing: '-0.01em',
+                        }}>
+                          {isTd ? 'Today' : format(parseISO(day.date), 'EEE')}
+                        </span>
                       </div>
                     );
                   })}
                 </div>
               </motion.div>
-            )}
 
-            {/* Today's ring */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="p-4 rounded-2xl bg-white/3 border border-white/6"
-            >
-              <h2 className="text-sm font-semibold mb-4">Today&apos;s Progress</h2>
-              <div className="flex items-center gap-5">
-                {/* SVG ring */}
-                <div className="relative flex-shrink-0">
-                  <svg width="80" height="80" viewBox="0 0 80 80">
-                    <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
-                    <motion.circle
-                      cx="40" cy="40" r="32"
-                      fill="none"
-                      stroke="url(#ringGrad)"
-                      strokeWidth="8"
-                      strokeLinecap="round"
-                      strokeDasharray={`${2 * Math.PI * 32}`}
-                      initial={{ strokeDashoffset: 2 * Math.PI * 32 }}
-                      animate={{ strokeDashoffset: 2 * Math.PI * 32 * (1 - stats.todayProgress.percentage / 100) }}
-                      transition={{ duration: 1, delay: 0.6, ease: 'easeOut' }}
-                      style={{ transformOrigin: 'center', transform: 'rotate(-90deg)' }}
-                    />
-                    <defs>
-                      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#6366f1" />
-                        <stop offset="100%" stopColor="#8b5cf6" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold">{stats.todayProgress.percentage}%</span>
+              {/* Streak calendar */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+                style={{ padding: '18px 16px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 9,
+                    background: 'var(--orange-dim)', border: '1px solid rgba(251,146,60,0.2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <Flame size={16} color="var(--orange)" />
                   </div>
-                </div>
-
-                <div className="space-y-2">
                   <div>
-                    <p className="text-2xl font-bold">{stats.todayProgress.completed}
-                      <span className="text-base text-white/30 font-normal">/{stats.todayProgress.total}</span>
+                    <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>Streak Calendar</p>
+                    <p style={{ fontSize: 11, color: 'var(--tx-3)', marginTop: 1 }}>
+                      {stats.streak.current > 0 ? `${stats.streak.current}-day streak 🔥` : 'Complete all tasks to start a streak'}
                     </p>
-                    <p className="text-xs text-white/35">tasks completed today</p>
                   </div>
-                  {stats.todayProgress.percentage === 100 && (
-                    <div className="flex items-center gap-1.5 text-green-400 text-xs font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Perfect day!
-                    </div>
-                  )}
                 </div>
-              </div>
-            </motion.div>
-          </>
-        )}
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {stats.dayStats.map((day, i) => {
+                    const isTd    = day.date === today;
+                    const perfect = day.percentage === 100;
+                    const partial = day.percentage > 0 && day.percentage < 100;
+
+                    return (
+                      <div key={day.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.1 + i * 0.05, type: 'spring', stiffness: 500 }}
+                          style={{
+                            width: '100%', aspectRatio: '1',
+                            borderRadius: 8,
+                            background: perfect ? 'var(--orange-dim)' : partial ? 'rgba(251,191,36,0.08)' : 'var(--bg-3)',
+                            border: `1px solid ${perfect ? 'rgba(251,146,60,0.25)' : partial ? 'rgba(251,191,36,0.15)' : 'var(--border)'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 14,
+                            boxShadow: perfect && isTd ? '0 0 12px rgba(251,146,60,0.3)' : 'none',
+                          }}
+                        >
+                          {perfect ? '🔥' : partial ? '✦' : ''}
+                        </motion.div>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: isTd ? 'var(--tx-2)' : 'var(--tx-4)', letterSpacing: '0.03em' }}>
+                          {isTd ? 'TOD' : format(parseISO(day.date), 'EEE').slice(0, 3).toUpperCase()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', gap: 1, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                  {[
+                    { label: 'Current',  val: stats.streak.current,  color: 'var(--orange)' },
+                    { label: 'Best',     val: stats.streak.longest,  color: 'var(--blue)' },
+                    { label: 'Perfect',  val: stats.dayStats.filter(d => d.percentage === 100).length, color: 'var(--green)' },
+                  ].map((item, i) => (
+                    <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                      <p style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Geist Mono, monospace', color: item.color, letterSpacing: '-0.02em' }}>{item.val}</p>
+                      <p style={{ fontSize: 10, color: 'var(--tx-3)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Top tasks */}
+              {stats.topTasks.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+                  style={{ padding: '18px 16px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12 }}
+                >
+                  <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em', marginBottom: 14 }}>Most consistent</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {stats.topTasks.map(({ task, completions }, i) => {
+                      if (!task) return null;
+                      const max = stats.topTasks[0]?.completions ?? 1;
+                      const pct = (completions / max) * 100;
+
+                      return (
+                        <div key={task.id}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                              <span style={{ fontSize: 15 }}>{task.emoji}</span>
+                              <span style={{ fontSize: 13, color: 'var(--tx-2)', fontWeight: 500 }}>{task.title}</span>
+                            </div>
+                            <span style={{ fontSize: 11, fontFamily: 'Geist Mono, monospace', color: 'var(--tx-3)' }}>{completions}/7</span>
+                          </div>
+                          <div className="progress-track">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{ delay: 0.3 + i * 0.08, duration: 0.5 }}
+                              style={{ height: '100%', borderRadius: 100, background: task.color }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Today ring */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                style={{ padding: '18px 16px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 20 }}
+              >
+                <svg width="72" height="72" style={{ flexShrink: 0 }}>
+                  <circle cx="36" cy="36" r="28" fill="none" stroke="var(--border-2)" strokeWidth="6" />
+                  <motion.circle
+                    cx="36" cy="36" r="28"
+                    fill="none" stroke="var(--accent)" strokeWidth="6"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 28}`}
+                    initial={{ strokeDashoffset: 2 * Math.PI * 28 }}
+                    animate={{ strokeDashoffset: 2 * Math.PI * 28 * (1 - stats.todayProgress.percentage / 100) }}
+                    transition={{ duration: 0.9, delay: 0.5, ease: [0.4, 0, 0.2, 1] }}
+                    style={{ transformOrigin: 'center', transform: 'rotate(-90deg)' }}
+                  />
+                </svg>
+                <div>
+                  <p style={{ fontSize: 28, fontWeight: 700, fontFamily: 'Geist Mono, monospace', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                    {stats.todayProgress.percentage}<span style={{ fontSize: 16, color: 'var(--tx-3)', fontWeight: 500 }}>%</span>
+                  </p>
+                  <p style={{ fontSize: 13, color: 'var(--tx-2)', marginTop: 4, fontWeight: 500 }}>Today&apos;s completion</p>
+                  <p style={{ fontSize: 11, color: 'var(--tx-3)', marginTop: 1 }}>
+                    {stats.todayProgress.completed} of {stats.todayProgress.total} tasks done
+                  </p>
+                </div>
+              </motion.div>
+            </>
+          )}
+
+          <div className="with-nav" />
+        </div>
       </div>
     </div>
   );

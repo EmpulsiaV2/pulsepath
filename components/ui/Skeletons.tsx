@@ -1,13 +1,12 @@
 export function TaskSkeleton() {
   return (
-    <div className="space-y-2.5">
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-white/3 border border-white/4">
-          <div className="w-4 h-4 rounded shimmer" />
-          <div className="w-10 h-10 rounded-xl shimmer flex-shrink-0" />
-          <div className="flex-1 space-y-1.5">
-            <div className="h-3 rounded-full shimmer" style={{ width: `${50 + i * 10}%` }} />
-            <div className="h-2 rounded-full shimmer w-16" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {[80, 60, 90, 55, 70].map((w, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+          <div className="skel" style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0 }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="skel" style={{ height: 12, width: `${w}%` }} />
+            <div className="skel" style={{ height: 10, width: 44 }} />
           </div>
         </div>
       ))}
@@ -17,12 +16,9 @@ export function TaskSkeleton() {
 
 export function StatSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="p-4 rounded-2xl bg-white/3 border border-white/4 space-y-2">
-          <div className="h-2.5 rounded-full shimmer w-3/4" />
-          <div className="h-6 rounded-full shimmer w-1/2" />
-        </div>
+        <div key={i} className="skel" style={{ height: 76, borderRadius: 12 }} />
       ))}
     </div>
   );

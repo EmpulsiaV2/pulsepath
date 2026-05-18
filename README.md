@@ -1,185 +1,129 @@
-# PulsePath 🔥
+# PulsePath ⚡
 
-A premium daily routine tracker app built with Next.js, TypeScript, Prisma, and Neon PostgreSQL. Features swipe gestures, push notifications, streak tracking, and a beautiful dark UI.
+A precision-designed daily routine tracker. Schedule tasks for specific days of the week, swipe to complete or delete, track streaks, get push notifications.
 
-## Features
-
-- ⚡ Beautiful dark UI with glassmorphism and neon accents
-- 👆 Swipe right to complete, swipe left to delete tasks
-- 🔥 7-day streak tracking with confetti celebrations
-- 🔔 Browser push notifications with service workers
-- 📅 Timeline view with live time indicator
-- 📊 Statistics with 7-day bar charts
-- 📱 PWA with "Add to Home Screen" support
-- 🔐 Secure auth with NextAuth + bcrypt
-- 🗄️ Neon PostgreSQL + Prisma ORM
-- 🧹 Auto-cleanup of history older than 7 days (Vercel Cron)
+**Stack:** Next.js 15 · TypeScript · Tailwind CSS · Framer Motion · Prisma · Neon PostgreSQL · NextAuth
 
 ---
 
-## Quick Start
+## Setup
 
-### 1. Clone and install
+### 1 — Install
 
 ```bash
-git clone <repo>
-cd pulsepath
 npm install
 ```
 
-### 2. Create a Neon database
+### 2 — Create a Neon database
 
-1. Go to [neon.tech](https://neon.tech) and create a free project
-2. Copy your connection strings from the Neon dashboard
+1. Sign up at [neon.tech](https://neon.tech) (free tier is plenty)
+2. Create a new project → copy the connection string
 
-### 3. Configure environment variables
+### 3 — Environment variables
 
 ```bash
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your values:
+Fill in:
 
-```env
-DATABASE_URL="postgresql://user:password@ep-xxxx.us-east-1.aws.neon.tech/pulsepath?sslmode=require"
-DIRECT_URL="postgresql://user:password@ep-xxxx.us-east-1.aws.neon.tech/pulsepath?sslmode=require"
-NEXTAUTH_SECRET="generate-with: openssl rand -base64 32"
-NEXTAUTH_URL="http://localhost:3000"
-```
+| Variable | Where to get it |
+|---|---|
+| `DATABASE_URL` | Neon dashboard → Connection Details |
+| `DIRECT_URL` | Same as DATABASE_URL (Neon supports both) |
+| `NEXTAUTH_SECRET` | Run: `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | `http://localhost:3000` locally |
 
-### 4. Set up the database
+### 4 — Push schema to database
 
 ```bash
 npx prisma db push
-npx prisma generate
 ```
 
-### 5. Run development server
+### 5 — Run
 
 ```bash
 npm run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## Vercel Deployment
+## Deploy to Vercel
 
-### 1. Push to GitHub
+### 1 — Push to GitHub
 
 ```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin <your-repo>
+git init && git add . && git commit -m "init"
+git remote add origin <your-repo-url>
 git push -u origin main
 ```
 
-### 2. Deploy on Vercel
+### 2 — Import on Vercel
 
-1. Go to [vercel.com](https://vercel.com) → New Project → Import from GitHub
-2. Add environment variables in the Vercel dashboard:
+1. [vercel.com/new](https://vercel.com/new) → Import your repo
+2. Add environment variables:
+   - `DATABASE_URL` — your Neon connection string
+   - `DIRECT_URL` — same as DATABASE_URL
+   - `NEXTAUTH_SECRET` — your generated secret
+   - `NEXTAUTH_URL` is set automatically by Vercel ✓
 
-| Variable | Value |
+3. Deploy — Prisma client generates automatically via `postinstall`
+
+### 3 — Initialize production database
+
+```bash
+# Run once after first deploy, pointing at your production DB
+DATABASE_URL="<neon-production-url>" npx prisma db push
+```
+
+---
+
+## Cron Job
+
+`vercel.json` schedules `/api/cleanup` at **2 AM UTC daily** — deletes task completion history older than 7 days.
+
+To protect the endpoint, set `CRON_SECRET` in your env vars.
+
+---
+
+## Swipe controls
+
+| Gesture | Action |
 |---|---|
-| `DATABASE_URL` | Your Neon connection string |
-| `DIRECT_URL` | Your Neon direct connection string |
-| `NEXTAUTH_SECRET` | A 32+ character random string |
-| `NEXTAUTH_URL` | Will be set automatically by Vercel |
-
-3. Deploy!
-
-### 3. Run database migrations on Vercel
-
-After first deploy, Prisma runs `prisma generate` automatically via `postinstall`.
-
-For schema changes, run from local:
-```bash
-DATABASE_URL="<your-production-url>" npx prisma db push
-```
+| Swipe **left** | ✅ Complete / undo |
+| Swipe **right** | 🗑️ Delete |
 
 ---
 
-## Cron Job (Auto Cleanup)
+## Weekly scheduling
 
-The `vercel.json` configures a daily cron at 2 AM UTC to delete history older than 7 days:
+Each task has a `recurDays` field — an array of day abbreviations (`mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`). The dashboard only shows tasks scheduled for today's day of the week.
 
-```json
-{
-  "crons": [{ "path": "/api/cleanup", "schedule": "0 2 * * *" }]
-}
-```
-
-To protect the endpoint, add `CRON_SECRET` to your environment variables and it will require `Authorization: Bearer <secret>` header.
+**Presets available in the task modal:**
+- Every day
+- Weekdays (Mon–Fri)
+- Weekends (Sat–Sun)
+- Mon / Wed / Fri
 
 ---
 
-## Push Notifications
-
-Push notifications work via browser Notification API + Service Worker.
-
-1. Users enable notifications in Settings → Notifications
-2. Browser permission is requested
-3. Notifications are scheduled client-side based on task times
-4. Service worker handles background delivery
-
-For server-side push (optional enhancement), generate VAPID keys:
-```bash
-npx web-push generate-vapid-keys
-```
-
----
-
-## Database Schema
-
-```
-User → Tasks → TaskCompletions
-     → Streaks
-     → NotificationPrefs
-```
-
-History older than 7 days is automatically deleted by the cron job.
-
----
-
-## Project Structure
+## Project structure
 
 ```
 pulsepath/
 ├── app/
-│   ├── (auth)/          # Login, signup, forgot password
-│   ├── (app)/           # Protected app pages
-│   │   ├── dashboard/   # Main task view
-│   │   ├── timeline/    # Chronological timeline
-│   │   ├── stats/       # Statistics & streaks
-│   │   └── settings/    # Account & notification settings
-│   ├── api/             # API routes
-│   └── page.tsx         # Landing page
+│   ├── (auth)/         login · signup · forgot-password
+│   ├── (app)/          dashboard · timeline · stats · settings
+│   ├── api/            tasks · stats · notifications · account · cleanup
+│   └── page.tsx        landing page
 ├── components/
-│   ├── navigation/      # Bottom nav
-│   ├── tasks/           # Task card, modal
-│   └── ui/              # Skeletons, confetti
-├── hooks/               # Service worker, notifications
-├── lib/                 # Auth, DB, utils
-├── prisma/              # Schema
-├── public/              # Manifest, icons, service worker
-└── types/               # TypeScript types
+│   ├── navigation/     BottomNav (safe-area aware)
+│   ├── tasks/          SwipeableTaskCard · TaskModal
+│   └── ui/             Confetti · Skeletons
+├── hooks/              useServiceWorker · useTaskNotifications
+├── lib/                auth · db · utils
+├── public/             manifest.json · sw.js · icons/
+└── prisma/             schema.prisma
 ```
-
----
-
-## Tech Stack
-
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Animations**: Framer Motion
-- **Auth**: NextAuth.js v4
-- **ORM**: Prisma
-- **Database**: Neon PostgreSQL
-- **Deployment**: Vercel
-
----
-
-Built with ❤️ for peak performance.

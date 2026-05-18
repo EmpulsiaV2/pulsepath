@@ -4,371 +4,280 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSession, signOut } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import {
-  User, Bell, Shield, LogOut, ChevronRight,
-  Loader2, Check, Moon, Smartphone
-} from 'lucide-react';
+import { User, Bell, Smartphone, LogOut, ChevronRight, Loader2, Check, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-const profileSchema = z.object({
-  name: z.string().min(2).max(50),
-});
+const TABS = [
+  { key: 'account',       icon: User,       label: 'Account'       },
+  { key: 'notifications', icon: Bell,       label: 'Notifications' },
+  { key: 'app',           icon: Smartphone, label: 'App'           },
+] as const;
 
-const passwordSchema = z.object({
-  currentPassword: z.string().min(1, 'Required'),
-  newPassword: z.string().min(8, 'Min 8 characters'),
-  confirmPassword: z.string(),
-}).refine((d) => d.newPassword === d.confirmPassword, {
-  message: "Passwords don't match",
-  path: ['confirmPassword'],
-});
+type Tab = typeof TABS[number]['key'];
 
 export default function SettingsPage() {
   const { data: session, update } = useSession();
-  const [activeTab, setActiveTab] = useState<'account' | 'notifications' | 'app'>('account');
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isSavingPassword, setIsSavingPassword] = useState(false);
-  const [notifPrefs, setNotifPrefs] = useState({ enabled: false, reminderMinutes: 10, morningDigest: true });
-  const [isSavingNotif, setIsSavingNotif] = useState(false);
-  const [notifSupported, setNotifSupported] = useState(false);
+  const [tab, setTab]             = useState<Tab>('account');
+  const [savingName, setSavingN]  = useState(false);
+  const [savingPwd, setSavingP]   = useState(false);
+  const [notif, setNotif]         = useState({ enabled: false, reminderMinutes: 10, morningDigest: true });
+  const [notifSupported, setNS]   = useState(false);
 
-  const profileForm = useForm({ resolver: zodResolver(profileSchema), defaultValues: { name: session?.user?.name ?? '' } });
-  const passwordForm = useForm({ resolver: zodResolver(passwordSchema) });
+  const nameForm = useForm<{ name: string }>({ defaultValues: { name: '' } });
+  const pwdForm  = useForm<{ current: string; next: string; confirm: string }>();
 
   useEffect(() => {
-    setNotifSupported('Notification' in window && 'serviceWorker' in navigator);
-    loadNotifPrefs();
+    setNS('Notification' in window);
+    loadNotif();
   }, []);
 
   useEffect(() => {
-    if (session?.user?.name) {
-      profileForm.reset({ name: session.user.name });
-    }
-  }, [session]);
+    if (session?.user?.name) nameForm.reset({ name: session.user.name });
+  }, [session?.user?.name]);
 
-  const loadNotifPrefs = async () => {
+  const loadNotif = async () => {
     try {
-      const res = await fetch('/api/notifications');
-      if (res.ok) {
-        const data = await res.json();
-        setNotifPrefs(data.prefs);
-      }
+      const r = await fetch('/api/notifications');
+      if (r.ok) { const d = await r.json(); setNotif(d.prefs); }
     } catch { /* silent */ }
   };
 
-  const saveProfile = async (data: { name: string }) => {
-    setIsSavingProfile(true);
+  const saveName = async (d: { name: string }) => {
+    setSavingN(true);
     try {
-      const res = await fetch('/api/account', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: data.name }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      await update({ name: data.name });
-      toast.success('Profile updated!');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update');
-    } finally {
-      setIsSavingProfile(false);
-    }
+      const r = await fetch('/api/account', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: d.name }) });
+      if (!r.ok) throw new Error((await r.json()).error);
+      await update({ name: d.name });
+      toast.success('Name updated');
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Failed'); }
+    finally { setSavingN(false); }
   };
 
-  const savePassword = async (data: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
-    setIsSavingPassword(true);
+  const savePassword = async (d: { current: string; next: string; confirm: string }) => {
+    if (d.next !== d.confirm) { toast.error("Passwords don't match"); return; }
+    if (d.next.length < 8)    { toast.error('Min 8 characters'); return; }
+    setSavingP(true);
     try {
-      const res = await fetch('/api/account', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: data.currentPassword, newPassword: data.newPassword }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Password changed!');
-      passwordForm.reset();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to change password');
-    } finally {
-      setIsSavingPassword(false);
-    }
+      const r = await fetch('/api/account', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: d.current, newPassword: d.next }) });
+      if (!r.ok) throw new Error((await r.json()).error);
+      toast.success('Password changed');
+      pwdForm.reset();
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Failed'); }
+    finally { setSavingP(false); }
   };
 
-  const toggleNotifications = async () => {
-    if (!notifSupported) return toast.error('Notifications not supported');
-
-    if (!notifPrefs.enabled) {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        toast.error('Notification permission denied');
-        return;
-      }
+  const toggleNotif = async () => {
+    if (!notifSupported) return toast.error('Not supported in this browser');
+    if (!notif.enabled) {
+      const p = await Notification.requestPermission();
+      if (p !== 'granted') { toast.error('Permission denied'); return; }
     }
-
-    const newEnabled = !notifPrefs.enabled;
-    setNotifPrefs((p) => ({ ...p, enabled: newEnabled }));
-    setIsSavingNotif(true);
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: newEnabled }),
-      });
-      toast.success(newEnabled ? 'Notifications enabled!' : 'Notifications disabled');
-    } finally {
-      setIsSavingNotif(false);
-    }
+    const val = !notif.enabled;
+    setNotif(n => ({ ...n, enabled: val }));
+    await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: val }) });
+    toast.success(val ? 'Notifications on' : 'Notifications off');
   };
 
-  const saveNotifPref = async (key: string, value: unknown) => {
-    const updated = { ...notifPrefs, [key]: value };
-    setNotifPrefs(updated);
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [key]: value }),
-      });
-    } catch { /* silent */ }
+  const patchNotif = async (key: string, value: unknown) => {
+    setNotif(n => ({ ...n, [key]: value }));
+    await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [key]: value }) });
   };
-
-  const TABS = [
-    { key: 'account', icon: User, label: 'Account' },
-    { key: 'notifications', icon: Bell, label: 'Notifications' },
-    { key: 'app', icon: Smartphone, label: 'App' },
-  ] as const;
 
   return (
-    <div className="h-full overflow-y-auto with-bottom-nav">
-      {/* Header */}
-      <div className="sticky top-0 z-20 bg-[#09090c]/90 backdrop-blur-xl border-b border-white/4 safe-top">
-        <div className="px-4 pt-4 pb-3 max-w-xl mx-auto">
-          <h1 className="text-lg font-bold mb-3">Settings</h1>
-          {/* Tab bar */}
-          <div className="flex gap-1 bg-white/4 rounded-xl p-1">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all',
-                  activeTab === tab.key ? 'bg-white/10 text-white' : 'text-white/35 hover:text-white/60'
-                )}
+    <div className="page">
+      <div className="page-header" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+        <div style={{ padding: '16px 20px 0', maxWidth: 560, margin: '0 auto' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--tx-3)', marginBottom: 3 }}>Configure</p>
+          <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 14 }}>Settings</h1>
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: -1 }}>
+            {TABS.map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px 10px',
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+                  color: tab === t.key ? 'var(--tx-1)' : 'var(--tx-3)',
+                  borderBottom: `2px solid ${tab === t.key ? 'var(--accent)' : 'transparent'}`,
+                  transition: 'color 0.15s, border-color 0.15s',
+                  letterSpacing: '-0.01em',
+                }}
               >
-                <tab.icon className="w-3.5 h-3.5" />
-                {tab.label}
+                <t.icon size={13} strokeWidth={2} />
+                {t.label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="px-4 pt-4 max-w-xl mx-auto space-y-4">
+      <div className="page-body">
+        <div style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Account tab */}
-        {activeTab === 'account' && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            {/* User card */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-violet-500/10 border border-indigo-500/15 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-xl font-bold text-white">
-                {session?.user?.name?.[0]?.toUpperCase() ?? '?'}
-              </div>
-              <div>
-                <p className="font-semibold">{session?.user?.name}</p>
-                <p className="text-xs text-white/40">{session?.user?.email}</p>
-              </div>
-            </div>
+          {tab === 'account' && (
+            <motion.div key="account" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-            {/* Edit profile */}
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/6 space-y-3">
-              <h3 className="text-sm font-semibold">Edit Profile</h3>
-              <form onSubmit={profileForm.handleSubmit(saveProfile)} className="space-y-3">
-                <div>
-                  <label className="text-xs text-white/40 mb-1.5 block">Display name</label>
-                  <input
-                    {...profileForm.register('name')}
-                    className="input-base w-full px-3 py-2.5 text-sm"
-                  />
-                  {profileForm.formState.errors.name && (
-                    <p className="text-red-400 text-xs mt-1">{profileForm.formState.errors.name.message}</p>
-                  )}
+              {/* User pill */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                  background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18, fontWeight: 700, color: 'var(--accent-text)',
+                }}>
+                  {session?.user?.name?.[0]?.toUpperCase() ?? '?'}
                 </div>
-                <button
-                  type="submit"
-                  disabled={isSavingProfile}
-                  className="flex items-center gap-2 bg-indigo-500/15 border border-indigo-500/25 text-indigo-400 text-sm font-medium px-4 py-2 rounded-xl hover:bg-indigo-500/20 transition-all disabled:opacity-50"
-                >
-                  {isSavingProfile ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Check className="w-3.5 h-3.5" /> Save name</>}
-                </button>
-              </form>
-            </div>
-
-            {/* Change password */}
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/6 space-y-3">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-white/40" />
-                <h3 className="text-sm font-semibold">Change Password</h3>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>{session?.user?.name}</p>
+                  <p style={{ fontSize: 12, color: 'var(--tx-3)', marginTop: 1 }}>{session?.user?.email}</p>
+                </div>
               </div>
-              <form onSubmit={passwordForm.handleSubmit(savePassword as Parameters<typeof passwordForm.handleSubmit>[0])} className="space-y-3">
-                {(['currentPassword', 'newPassword', 'confirmPassword'] as const).map((field) => (
-                  <div key={field}>
-                    <label className="text-xs text-white/40 mb-1.5 block capitalize">
-                      {field.replace(/([A-Z])/g, ' $1').toLowerCase()}
-                    </label>
+
+              {/* Name */}
+              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px 0' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em', marginBottom: 12 }}>Display name</p>
+                  <form onSubmit={nameForm.handleSubmit(saveName)} style={{ display: 'flex', gap: 8, paddingBottom: 14 }}>
+                    <input {...nameForm.register('name', { required: true, minLength: 2 })} className="field" style={{ flex: 1 }} />
+                    <button type="submit" disabled={savingName} className="btn btn-accent" style={{ padding: '11px 14px' }}>
+                      {savingName ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={13} />}
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* Password */}
+              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <Shield size={13} color="var(--tx-3)" />
+                  <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>Change password</p>
+                </div>
+                <form onSubmit={pwdForm.handleSubmit(savePassword)} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(['current', 'next', 'confirm'] as const).map((f) => (
                     <input
-                      {...passwordForm.register(field)}
+                      key={f}
+                      {...pwdForm.register(f)}
                       type="password"
-                      placeholder="••••••••"
-                      className="input-base w-full px-3 py-2.5 text-sm"
+                      placeholder={{ current: 'Current password', next: 'New password (min 8)', confirm: 'Confirm new password' }[f]}
+                      className="field"
                     />
-                    {passwordForm.formState.errors[field] && (
-                      <p className="text-red-400 text-xs mt-1">{String(passwordForm.formState.errors[field]?.message ?? '')}</p>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="submit"
-                  disabled={isSavingPassword}
-                  className="flex items-center gap-2 bg-indigo-500/15 border border-indigo-500/25 text-indigo-400 text-sm font-medium px-4 py-2 rounded-xl hover:bg-indigo-500/20 transition-all disabled:opacity-50"
-                >
-                  {isSavingPassword ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating...</> : 'Update password'}
-                </button>
-              </form>
-            </div>
-
-            {/* Sign out */}
-            <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
-              className="w-full flex items-center gap-3 p-4 rounded-2xl bg-white/3 border border-white/6 hover:bg-red-500/8 hover:border-red-500/20 transition-all group"
-            >
-              <LogOut className="w-4 h-4 text-white/30 group-hover:text-red-400 transition-colors" />
-              <span className="text-sm text-white/50 group-hover:text-red-400 transition-colors">Sign out</span>
-            </button>
-          </motion.div>
-        )}
-
-        {/* Notifications tab */}
-        {activeTab === 'notifications' && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Push notifications</p>
-                  <p className="text-xs text-white/35 mt-0.5">Get reminded when tasks are due</p>
-                </div>
-                <button
-                  onClick={toggleNotifications}
-                  disabled={isSavingNotif || !notifSupported}
-                  className={cn(
-                    'w-12 h-6 rounded-full transition-all relative disabled:opacity-40',
-                    notifPrefs.enabled ? 'bg-indigo-500' : 'bg-white/10'
-                  )}
-                >
-                  <div className={cn(
-                    'absolute top-1 w-4 h-4 rounded-full bg-white transition-all',
-                    notifPrefs.enabled ? 'left-7' : 'left-1'
-                  )} />
-                </button>
+                  ))}
+                  <button type="submit" disabled={savingPwd} className="btn btn-accent btn-full" style={{ marginTop: 4 }}>
+                    {savingPwd ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Updating…</> : 'Update password'}
+                  </button>
+                </form>
               </div>
 
+              {/* Sign out */}
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px',
+                  background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12,
+                  cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', textAlign: 'left',
+                  color: 'var(--tx-2)', fontSize: 14, fontWeight: 500,
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(248,113,113,0.2)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--red)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--tx-2)'; }}
+              >
+                <LogOut size={14} />
+                Sign out
+              </button>
+            </motion.div>
+          )}
+
+          {tab === 'notifications' && (
+            <motion.div key="notifications" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: notif.enabled ? '1px solid var(--border)' : 'none' }}>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>Push notifications</p>
+                    <p style={{ fontSize: 12, color: 'var(--tx-3)', marginTop: 2 }}>Reminders when tasks are due</p>
+                  </div>
+                  <button
+                    onClick={toggleNotif}
+                    disabled={!notifSupported}
+                    className="toggle"
+                    data-on={String(notif.enabled)}
+                  />
+                </div>
+                {notif.enabled && (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                      <p style={{ fontSize: 13, color: 'var(--tx-2)', fontWeight: 500 }}>Remind me before</p>
+                      <select
+                        value={notif.reminderMinutes}
+                        onChange={e => patchNotif('reminderMinutes', Number(e.target.value))}
+                        style={{ background: 'var(--bg-3)', border: '1px solid var(--border-2)', borderRadius: 8, color: 'var(--tx-1)', fontFamily: 'inherit', fontSize: 13, padding: '6px 10px', outline: 'none' }}
+                      >
+                        {[0, 5, 10, 15, 30].map(m => <option key={m} value={m}>{m === 0 ? 'At task time' : `${m} min before`}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px' }}>
+                      <div>
+                        <p style={{ fontSize: 13, color: 'var(--tx-2)', fontWeight: 500 }}>Morning digest</p>
+                        <p style={{ fontSize: 11, color: 'var(--tx-3)', marginTop: 1 }}>Daily summary at 8 AM</p>
+                      </div>
+                      <button onClick={() => patchNotif('morningDigest', !notif.morningDigest)} className="toggle" data-on={String(notif.morningDigest)} />
+                    </div>
+                  </>
+                )}
+              </div>
               {!notifSupported && (
-                <p className="text-xs text-yellow-400/70 bg-yellow-500/8 border border-yellow-500/15 rounded-xl px-3 py-2">
+                <p style={{ fontSize: 12, color: 'var(--tx-3)', padding: '10px 14px', background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 10 }}>
                   Notifications require a modern browser with service worker support.
                 </p>
               )}
-            </div>
+            </motion.div>
+          )}
 
-            {notifPrefs.enabled && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 rounded-2xl bg-white/3 border border-white/6 space-y-4">
-                <h3 className="text-sm font-semibold">Reminder timing</h3>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-white/60">Minutes before task</span>
-                  <select
-                    value={notifPrefs.reminderMinutes}
-                    onChange={(e) => saveNotifPref('reminderMinutes', Number(e.target.value))}
-                    className="input-base px-3 py-1.5 text-sm"
-                  >
-                    {[0, 5, 10, 15, 30].map((m) => (
-                      <option key={m} value={m}>{m === 0 ? 'At time' : `${m} min before`}</option>
-                    ))}
-                  </select>
+          {tab === 'app' && (
+            <motion.div key="app" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em', marginBottom: 4 }}>Add to Home Screen</p>
+                  <p style={{ fontSize: 12, color: 'var(--tx-3)', lineHeight: 1.6 }}>
+                    Open your browser menu and install PulsePath for a native app feel.
+                  </p>
                 </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                  <div>
-                    <p className="text-sm text-white/70">Morning digest</p>
-                    <p className="text-xs text-white/30">Daily summary at 8 AM</p>
-                  </div>
-                  <button
-                    onClick={() => saveNotifPref('morningDigest', !notifPrefs.morningDigest)}
-                    className={cn(
-                      'w-11 h-6 rounded-full transition-all relative',
-                      notifPrefs.morningDigest ? 'bg-indigo-500' : 'bg-white/10'
-                    )}
-                  >
-                    <div className={cn(
-                      'absolute top-1 w-4 h-4 rounded-full bg-white transition-all',
-                      notifPrefs.morningDigest ? 'left-6' : 'left-1'
-                    )} />
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
-        )}
-
-        {/* App tab */}
-        {activeTab === 'app' && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/6 space-y-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Moon className="w-4 h-4 text-indigo-400" />
-                <h3 className="text-sm font-semibold">Appearance</h3>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-white/60">Dark mode</span>
-                <div className="bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 text-xs px-2.5 py-1 rounded-lg font-medium">
-                  Always on
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/6 space-y-3">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-indigo-400" />
-                Add to Home Screen
-              </h3>
-              <p className="text-xs text-white/40 leading-relaxed">
-                Install PulsePath on your phone for a native app experience. Open your browser menu and tap &ldquo;Add to Home Screen&rdquo; or &ldquo;Install App&rdquo;.
-              </p>
-              <div className="space-y-2">
                 {[
-                  { label: 'iPhone / Safari', steps: 'Tap Share → Add to Home Screen' },
-                  { label: 'Android / Chrome', steps: 'Tap ⋮ menu → Add to Home Screen' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/5">
-                    <ChevronRight className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                  { os: 'iPhone · Safari',  step: 'Share button → Add to Home Screen' },
+                  { os: 'Android · Chrome', step: 'Menu (⋮) → Add to Home Screen' },
+                ].map(item => (
+                  <div key={item.os} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                    <ChevronRight size={12} color="var(--accent-text)" />
                     <div>
-                      <p className="text-xs font-medium text-white/70">{item.label}</p>
-                      <p className="text-[11px] text-white/35">{item.steps}</p>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx-2)' }}>{item.os}</p>
+                      <p style={{ fontSize: 11, color: 'var(--tx-3)', marginTop: 1 }}>{item.step}</p>
                     </div>
                   </div>
                 ))}
+                <div style={{ padding: '12px 16px' }}>
+                  <p style={{ fontSize: 11, color: 'var(--tx-3)' }}>Once added, the app opens full-screen with no browser UI.</p>
+                </div>
               </div>
-            </div>
 
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/6">
-              <h3 className="text-sm font-semibold mb-3">About</h3>
-              <div className="space-y-2 text-xs text-white/35">
-                <div className="flex justify-between"><span>Version</span><span className="text-white/50">1.0.0</span></div>
-                <div className="flex justify-between"><span>Data retention</span><span className="text-white/50">7 days history</span></div>
-                <div className="flex justify-between"><span>Built with</span><span className="text-white/50">Next.js · Prisma · Neon</span></div>
+              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
+                <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, letterSpacing: '-0.01em' }}>About</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { k: 'Version',        v: '1.0.0' },
+                    { k: 'History',        v: '7 days' },
+                    { k: 'Stack',          v: 'Next.js · Prisma · Neon' },
+                  ].map(row => (
+                    <div key={row.k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--tx-3)' }}>{row.k}</span>
+                      <span style={{ fontSize: 12, color: 'var(--tx-2)', fontWeight: 500, fontFamily: 'Geist Mono, monospace' }}>{row.v}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
+
+          <div className="with-nav" />
+        </div>
       </div>
     </div>
   );
