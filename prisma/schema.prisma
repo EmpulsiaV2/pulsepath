@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                    String               @id @default(cuid())
+  name                  String?
+  email                 String               @unique
+  emailVerified         DateTime?
+  password              String?
+  image                 String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  accounts              Account[]
+  sessions              Session[]
+  tasks                 Task[]
+  completionHistory     TaskCompletion[]
+  streaks               Streak[]
+  notificationPrefs     NotificationPrefs?
+  resetToken            String?
+  resetTokenExpiry      DateTime?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Task {
+  id            String           @id @default(cuid())
+  userId        String
+  title         String
+  emoji         String           @default("⚡")
+  color         String           @default("#6366f1")
+  timeOfDay     String           // "morning" | "afternoon" | "evening"
+  scheduledTime String?          // "07:00"
+  isRecurring   Boolean          @default(true)
+  recurDays     String[]         @default(["mon","tue","wed","thu","fri","sat","sun"])
+  order         Int              @default(0)
+  notes         String?
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completions   TaskCompletion[]
+
+  @@index([userId])
+}
+
+model TaskCompletion {
+  id          String   @id @default(cuid())
+  userId      String
+  taskId      String
+  completedAt DateTime @default(now())
+  date        String   // "2024-11-15" for easy daily lookups
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, date])
+  @@index([userId, date])
+}
+
+model Streak {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  currentStreak Int      @default(0)
+  longestStreak Int      @default(0)
+  lastActiveDate String?
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationPrefs {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  enabled              Boolean  @default(false)
+  reminderMinutes      Int      @default(10)
+  morningDigest        Boolean  @default(true)
+  pushSubscription     String?  // JSON stringified push subscription
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
