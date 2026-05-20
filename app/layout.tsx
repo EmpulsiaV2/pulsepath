@@ -18,6 +18,59 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+// Runs before React hydrates — creates the splash div imperatively
+// so React never owns it and there's zero hydration mismatch.
+const splashScript = `
+(function(){
+  var css = [
+    '@keyframes pp-pulse{0%,100%{transform:scale(1)}50%{transform:scale(0.94)}}',
+    '@keyframes pp-dot{0%,80%,100%{opacity:.2;transform:scale(.85)}40%{opacity:1;transform:scale(1.2)}}',
+  ].join('');
+  var st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  var el = document.createElement('div');
+  el.id = 'pp-splash';
+  el.innerHTML = [
+    '<div style="',
+      'width:72px;height:72px;border-radius:20px;',
+      'background:#D4612A;',
+      'display:flex;align-items:center;justify-content:center;',
+      'font-size:36px;',
+      'box-shadow:0 8px 28px rgba(212,97,42,.35),inset 0 1px 0 rgba(255,255,255,.22);',
+      'animation:pp-pulse 1.8s ease-in-out infinite;',
+    '">⚡</div>',
+    '<p style="',
+      'font-family:-apple-system,Inter,system-ui,sans-serif;',
+      'font-size:22px;font-weight:700;letter-spacing:-.03em;',
+      'color:#1A1108;margin:0;',
+    '">PulsePath</p>',
+    '<div style="display:flex;gap:6px;margin-top:4px;">',
+      [0,1,2].map(function(i){
+        return '<div style="width:6px;height:6px;border-radius:50%;background:#D4612A;animation:pp-dot 1.2s ease-in-out '+(i*.2)+'s infinite;"></div>';
+      }).join(''),
+    '</div>',
+  ].join('');
+  Object.assign(el.style, {
+    position:'fixed', inset:'0', zIndex:'99999',
+    background:'#F2EDE4',
+    display:'flex', flexDirection:'column',
+    alignItems:'center', justifyContent:'center', gap:'16px',
+    transition:'opacity .32s ease',
+    pointerEvents:'none',
+  });
+  document.body.appendChild(el);
+
+  function hide(){
+    el.style.opacity='0';
+    setTimeout(function(){ el.parentNode&&el.parentNode.removeChild(el); }, 350);
+  }
+  if(document.readyState==='complete'){ setTimeout(hide,100); }
+  else { window.addEventListener('load',function(){ setTimeout(hide,100); }); }
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -26,101 +79,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="PulsePath" />
+        {/*
+          Script runs synchronously before paint — creates the splash div
+          before React mounts, so React never sees it and hydration is clean.
+        */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script dangerouslySetInnerHTML={{ __html: splashScript }} />
       </head>
       <body>
-        {/*
-          Splash screen — pure HTML/CSS, renders before any JS.
-          Visible instantly when app opens from home screen.
-          Removed by the inline script once window fires 'load'.
-        */}
-        <div
-          id="pp-splash"
-          aria-hidden="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 99999,
-            background: '#F2EDE4',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '16px',
-            transition: 'opacity 0.35s ease',
-            pointerEvents: 'none',
-          }}
-        >
-          {/* Icon */}
-          <div style={{
-            width: 72, height: 72, borderRadius: 20,
-            background: '#D4612A',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 36,
-            boxShadow: '0 8px 28px rgba(212,97,42,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
-            animation: 'pp-pulse 1.8s ease-in-out infinite',
-          }}>
-            ⚡
-          </div>
-          {/* Wordmark */}
-          <p style={{
-            fontFamily: '-apple-system, Inter, system-ui, sans-serif',
-            fontSize: 22, fontWeight: 700,
-            letterSpacing: '-0.03em',
-            color: '#1A1108',
-            margin: 0,
-          }}>
-            PulsePath
-          </p>
-          {/* Loader dots */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            {[0, 1, 2].map(i => (
-              <div
-                key={i}
-                style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: '#D4612A',
-                  opacity: 0.25,
-                  animation: `pp-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Splash keyframes + removal script — no external deps needed */}
-        <style>{`
-          @keyframes pp-pulse {
-            0%, 100% { transform: scale(1); box-shadow: 0 8px 28px rgba(212,97,42,0.35), inset 0 1px 0 rgba(255,255,255,0.25); }
-            50%       { transform: scale(0.96); box-shadow: 0 4px 16px rgba(212,97,42,0.20), inset 0 1px 0 rgba(255,255,255,0.25); }
-          }
-          @keyframes pp-dot {
-            0%, 80%, 100% { opacity: 0.2; transform: scale(0.9); }
-            40%            { opacity: 0.9; transform: scale(1.15); }
-          }
-        `}</style>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                function hideSplash() {
-                  var el = document.getElementById('pp-splash');
-                  if (!el) return;
-                  el.style.opacity = '0';
-                  setTimeout(function() { el && el.remove(); }, 380);
-                }
-                // Hide once page is interactive
-                if (document.readyState === 'complete') {
-                  setTimeout(hideSplash, 120);
-                } else {
-                  window.addEventListener('load', function() {
-                    setTimeout(hideSplash, 120);
-                  });
-                }
-              })();
-            `,
-          }}
-        />
-
         <Providers>
           {children}
           <Toaster
