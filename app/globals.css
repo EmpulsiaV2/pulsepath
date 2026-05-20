@@ -231,3 +231,33 @@ textarea.field { resize: none; line-height: 1.55; }
 /* ─── Focus ─────────────────────────────────────────────── */
 :focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; border-radius: 6px; }
 button, a { -webkit-tap-highlight-color: transparent; }
+
+
+/* ─── Performance overrides ──────────────────────────────────
+   backdrop-filter on every card kills mobile scroll perf.
+   Cards sit on a static background so blur adds nothing visual.
+   Keep blur ONLY on the nav bar and modal overlays.
+   ─────────────────────────────────────────────────────────── */
+
+.glass-card {
+  /* Override: solid surface, no blur, GPU-friendly */
+  background: rgba(255, 252, 247, 0.97) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 0 1px 3px rgba(100,60,20,0.07), 0 0 0 0.5px rgba(160,120,80,0.10), inset 0 1px 0 rgba(255,255,255,0.9) !important;
+}
+
+/* Promote nav to its own compositor layer — eliminates repaint on scroll */
+.bottom-nav {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

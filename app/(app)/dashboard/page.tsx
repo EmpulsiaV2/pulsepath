@@ -9,6 +9,7 @@ import { SwipeableTaskCard } from '@/components/tasks/SwipeableTaskCard';
 import { TaskModal } from '@/components/tasks/TaskModal';
 import { Confetti } from '@/components/ui/Confetti';
 import type { Task, CreateTaskInput } from '@/types';
+import { getCached, setCache, invalidateCache } from '@/hooks/useCache';
 
 const SECTIONS = [
   { key: 'morning',   label: 'Morning',   emoji: '🌅' },
@@ -43,12 +44,18 @@ export default function DashboardPage() {
   const [confetti, setConfetti]   = useState(false);
   const prevDone                  = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (bg = false) => {
+    if (!bg) {
+      const cached = getCached<Task[]>('tasks');
+      if (cached) { setTasks(cached); setLoading(false); }
+    }
     try {
       const r = await fetch('/api/tasks');
       if (!r.ok) throw new Error();
-      setTasks((await r.json()).tasks);
-    } catch { toast.error('Could not load tasks'); }
+      const data = (await r.json()).tasks;
+      setCache('tasks', data);
+      setTasks(data);
+    } catch { if (!bg) toast.error('Could not load tasks'); }
     finally { setLoading(false); }
   }, []);
 
@@ -86,6 +93,7 @@ export default function DashboardPage() {
       headers: {'Content-Type':'application/json'}, body: JSON.stringify(data),
     });
     if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+    invalidateCache('tasks');
     toast.success(editTask ? 'Updated' : 'Task added');
     load();
   };
