@@ -5,58 +5,53 @@ import { prisma } from '@/lib/db';
 import { z } from 'zod';
 import { getTodayString, getCurrentDayAbbr } from '@/lib/utils';
 
+function deriveTimeOfDay(t?: string | null): 'morning'|'afternoon'|'evening' {
+  if (!t) return 'morning';
+  const h = parseInt(t.split(':')[0], 10);
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
+}
+
+const clean = (v?: string | null) => (v && v.trim() ? v : undefined);
+
 const createSchema = z.object({
-  title: z.string().min(1).max(100),
-  emoji: z.string().default('⚡'),
-  color: z.string().default('#6366f1'),
-  timeOfDay: z.enum(['morning', 'afternoon', 'evening']),
-  scheduledTime: z.string().optional(),
-  isRecurring: z.boolean().default(true),
-  recurDays: z.array(z.string()).default(['mon','tue','wed','thu','fri','sat','sun']),
-  notes: z.string().optional(),
+  title:            z.string().min(1).max(100),
+  emoji:            z.string().default('⚡'),
+  color:            z.string().default('#D4612A'),
+  timeOfDay:        z.enum(['morning','afternoon','evening']).default('morning'),
+  scheduledTime:    z.string().optional().transform(clean),
+  scheduledEndTime: z.string().optional().transform(clean),
+  isRecurring:      z.boolean().default(true),
+  recurDays:        z.array(z.string()).default(['mon','tue','wed','thu','fri','sat','sun']),
+  notes:            z.string().optional().transform(clean),
 });
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const today = getTodayString();
+    const today    = getTodayString();
     const todayDay = getCurrentDayAbbr();
 
     const tasks = await prisma.task.findMany({
-      where: {
-        userId: session.user.id,
-        isActive: true,
-      },
-      include: {
-        completions: {
-          where: { date: today },
-        },
-      },
-      orderBy: [
-        { timeOfDay: 'asc' },
-        { order: 'asc' },
-        { scheduledTime: 'asc' },
-      ],
+      where: { userId: session.user.id, isActive: true },
+      include: { completions: { where: { date: today } } },
+      orderBy: [{ timeOfDay: 'asc' }, { order: 'asc' }, { scheduledTime: 'asc' }],
     });
 
-    // Filter by recurring days
-    const filtered = tasks.filter((task: typeof tasks[0]) => {
-      if (!task.isRecurring) return true;
-      return task.recurDays.includes(todayDay);
+    const filtered = tasks.filter((t: typeof tasks[0]) => {
+      if (!t.isRecurring) return true;
+      if (!t.recurDays || t.recurDays.length === 0) return true;
+      return t.recurDays.includes(todayDay);
     });
 
-    const mapped = filtered.map((task: typeof tasks[0]) => ({
-      ...task,
-      isCompleted: task.completions.length > 0,
-    }));
-
-    return NextResponse.json({ tasks: mapped });
-  } catch (error) {
-    console.error('[TASKS_GET]', error);
+    return NextResponse.json({
+      tasks: filtered.map((t: typeof tasks[0]) => ({ ...t, isCompleted: t.completions.length > 0 })),
+    });
+  } catch (e) {
+    console.error('[TASKS_GET]', e);
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
   }
 }
@@ -64,32 +59,24 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await req.json();
-    const data = createSchema.parse(body);
+    const data = createSchema.parse(await req.json());
+    const timeOfDay = data.scheduledTime ? deriveTimeOfDay(data.scheduledTime) : data.timeOfDay;
 
-    const lastTask = await prisma.task.findFirst({
-      where: { userId: session.user.id, timeOfDay: data.timeOfDay },
+    const last = await prisma.task.findFirst({
+      where: { userId: session.user.id, timeOfDay },
       orderBy: { order: 'desc' },
     });
 
     const task = await prisma.task.create({
-      data: {
-        ...data,
-        userId: session.user.id,
-        order: (lastTask?.order ?? -1) + 1,
-      },
+      data: { ...data, timeOfDay, userId: session.user.id, order: (last?.order ?? -1) + 1 },
     });
 
     return NextResponse.json({ task }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors[0].message }, { status: 400 });
-    }
-    console.error('[TASKS_POST]', error);
+  } catch (e) {
+    if (e instanceof z.ZodError) return NextResponse.json({ error: e.errors[0].message }, { status: 400 });
+    console.error('[TASKS_POST]', e);
     return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
   }
 }

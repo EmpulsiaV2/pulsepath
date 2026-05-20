@@ -2,9 +2,7 @@ import type { DefaultSession } from 'next-auth';
 
 declare module 'next-auth' {
   interface Session {
-    user: {
-      id: string;
-    } & DefaultSession['user'];
+    user: { id: string } & DefaultSession['user'];
   }
 }
 
@@ -16,6 +14,7 @@ export interface Task {
   color: string;
   timeOfDay: 'morning' | 'afternoon' | 'evening';
   scheduledTime: string | null;
+  scheduledEndTime: string | null;
   isRecurring: boolean;
   recurDays: string[];
   order: number;
@@ -28,47 +27,29 @@ export interface Task {
 }
 
 export interface TaskCompletion {
-  id: string;
-  userId: string;
-  taskId: string;
-  completedAt: string;
-  date: string;
+  id: string; userId: string; taskId: string; completedAt: string; date: string;
 }
 
 export interface Streak {
-  id: string;
-  userId: string;
-  currentStreak: number;
-  longestStreak: number;
-  lastActiveDate: string | null;
-  updatedAt: string;
+  id: string; userId: string; currentStreak: number; longestStreak: number;
+  lastActiveDate: string | null; updatedAt: string;
 }
 
 export interface NotificationPrefs {
-  id: string;
-  userId: string;
-  enabled: boolean;
-  reminderMinutes: number;
-  morningDigest: boolean;
-  pushSubscription: string | null;
+  id: string; userId: string; enabled: boolean; reminderMinutes: number;
+  morningDigest: boolean; pushSubscription: string | null;
 }
 
 export interface DayStats {
-  date: string;
-  total: number;
-  completed: number;
-  percentage: number;
+  date: string; total: number; completed: number; percentage: number;
 }
 
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening';
 
 export interface CreateTaskInput {
-  title: string;
-  emoji: string;
-  color: string;
+  title: string; emoji: string; color: string;
   timeOfDay: TimeOfDay;
   scheduledTime?: string;
-  isRecurring: boolean;
-  recurDays: string[];
-  notes?: string;
+  scheduledEndTime?: string;
+  isRecurring: boolean; recurDays: string[]; notes?: string;
 }

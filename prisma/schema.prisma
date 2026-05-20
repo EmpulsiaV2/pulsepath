@@ -68,7 +68,8 @@ model Task {
   emoji         String           @default("⚡")
   color         String           @default("#6366f1")
   timeOfDay     String           // "morning" | "afternoon" | "evening"
-  scheduledTime String?          // "07:00"
+  scheduledTime    String?
+  scheduledEndTime String?
   isRecurring   Boolean          @default(true)
   recurDays     String[]         @default(["mon","tue","wed","thu","fri","sat","sun"])
   order         Int              @default(0)

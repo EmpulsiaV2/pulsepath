@@ -7,23 +7,14 @@ export const metadata: Metadata = {
   title: 'PulsePath',
   description: 'Build powerful daily routines.',
   manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'PulsePath',
-  },
-  icons: {
-    icon: '/icons/icon-192.png',
-    apple: '/icons/apple-touch-icon.png',
-  },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'PulsePath' },
+  icons: { icon: '/icons/icon-192.png', apple: '/icons/apple-touch-icon.png' },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#07070a',
+  themeColor: '#F2EDE4',
   width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  initialScale: 1, maximumScale: 1, userScalable: false,
   viewportFit: 'cover',
 };
 
@@ -33,9 +24,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="PulsePath" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body>
         <Providers>
@@ -45,18 +35,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             toastOptions={{
               duration: 2500,
               style: {
-                background: 'var(--bg-3)',
-                color: 'var(--tx-1)',
-                border: '1px solid var(--border-2)',
-                borderRadius: '10px',
+                background: 'rgba(255,252,247,0.95)',
+                color: '#1A1108',
+                border: '0.5px solid rgba(160,120,80,0.18)',
+                borderRadius: '12px',
                 fontSize: '13px',
-                fontFamily: 'Geist, sans-serif',
+                fontFamily: 'Inter, sans-serif',
                 fontWeight: '500',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                boxShadow: '0 8px 32px rgba(100,60,20,0.15), inset 0 1px 0 rgba(255,255,255,0.9)',
                 padding: '10px 14px',
               },
-              success: { iconTheme: { primary: 'var(--green)', secondary: 'var(--bg-3)' } },
-              error: { iconTheme: { primary: 'var(--red)', secondary: 'var(--bg-3)' } },
+              success: { iconTheme: { primary: '#4D7C2A', secondary: 'white' } },
+              error:   { iconTheme: { primary: '#C03020', secondary: 'white' } },
             }}
           />
         </Providers>

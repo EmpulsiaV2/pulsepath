@@ -2,37 +2,21 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { format } from 'date-fns';
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
+export function getTodayString() { return format(new Date(), 'yyyy-MM-dd'); }
+export function getLast7Days() {
+  return Array.from({ length:7 }, (_,i) => { const d=new Date(); d.setDate(d.getDate()-(6-i)); return format(d,'yyyy-MM-dd'); });
 }
-
-export function getTodayString(): string {
-  return format(new Date(), 'yyyy-MM-dd');
-}
-
-export function formatTime(time: string): string {
-  const [h, m] = time.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
-}
-
-export function getLast7Days(): string[] {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return format(d, 'yyyy-MM-dd');
-  });
-}
-
-export function getCurrentDayAbbr(): string {
-  return ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()];
+export function getCurrentDayAbbr() { return ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()]; }
+export function formatTime(t: string): string {
+  const [h,m] = t.split(':').map(Number);
+  return `${h%12||12}:${m.toString().padStart(2,'0')} ${h>=12?'PM':'AM'}`;
 }
 
 export const COLORS = [
-  '#7b68ee', '#60a5fa', '#34d399', '#fb923c',
-  '#f472b6', '#facc15', '#f87171', '#a78bfa',
-  '#2dd4bf', '#e879f9',
+  '#D4612A','#C87C10','#4D7C2A','#2460A8',
+  '#8B4E8A','#C03020','#B85A30','#5A8A72',
+  '#7A6040','#3A6898',
 ];
 
 export const EMOJIS = [
